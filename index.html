@@ -863,16 +863,26 @@ function hint() {
 
 // ═══════════════════════════════════════════
 // SHUFFLE remaining tiles
+// Retries until at least one valid match exists among free tiles
 // ═══════════════════════════════════════════
 function shuffleBoard() {
   const active = state.tiles.filter(t => !t.removed);
-  const rng = seededRNG(Date.now());
+  if (active.length < 2) return;
+
   const emojis = active.map(t => ({ emoji: t.emoji, matchId: t.matchId }));
-  shuffle(emojis, rng);
-  active.forEach((t, i) => {
-    t.emoji = emojis[i].emoji;
-    t.matchId = emojis[i].matchId;
-  });
+  const MAX_TRIES = 200;
+
+  for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
+    const rng = seededRNG(Date.now() + attempt * 7919);
+    const shuffled = [...emojis];
+    shuffle(shuffled, rng);
+    active.forEach((t, i) => {
+      t.emoji = shuffled[i].emoji;
+      t.matchId = shuffled[i].matchId;
+    });
+    if (hasValidMoves()) break;
+  }
+
   state.selected = null;
   renderBoard();
   saveState();
