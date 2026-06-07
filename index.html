@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>🀄 Mahjong</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Cinzel+Decorative:wght@700&display=swap');
+
+  :root {
+    --bg: #0d0d14;
+    --felt: #0e1f14;
+    --gold: #c9a84c;
+    --gold-light: #e8c97a;
+    --red: #c0392b;
+    --tile-bg: #fdf6e3;
+    --tile-shadow: #8b7355;
+    --tile-border: #d4b483;
+    --tile-hover: #fff8e8;
+    --tile-sel: #ffe082;
+    --tile-matched: #a5d6a7;
+    --text-dark: #2c1810;
+    --panel: rgba(255,255,255,0.04);
+    --radius: 6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--gold);
+    font-family: 'Noto Serif SC', serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    user-select: none;
+  }
+
+  /* === BACKGROUND PATTERN === */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(45deg, rgba(201,168,76,0.03) 0, rgba(201,168,76,0.03) 1px, transparent 0, transparent 50%),
+      repeating-linear-gradient(-45deg, rgba(201,168,76,0.03) 0, rgba(201,168,76,0.03) 1px, transparent 0, transparent 50%);
+    background-size: 30px 30px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #app {
+    position: relative;
+    z-index: 1;
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* === HEADER === */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px 8px;
+    border-bottom: 1px solid rgba(201,168,76,0.2);
+  }
+
+  .logo {
+    font-family: 'Cinzel Decorative', serif;
+    font-size: 20px;
+    color: var(--gold);
+    letter-spacing: 1px;
+    text-shadow: 0 0 20px rgba(201,168,76,0.4);
+  }
+
+  .stats {
+    display: flex;
+    gap: 16px;
+    font-size: 13px;
+    color: var(--gold-light);
+  }
+
+  .stat { display: flex; flex-direction: column; align-items: center; }
+  .stat-val { font-size: 18px; font-weight: bold; line-height: 1; }
+  .stat-lbl { font-size: 10px; opacity: 0.6; letter-spacing: 1px; text-transform: uppercase; }
+
+  /* === TOOLBAR === */
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    padding: 8px 16px;
+    border-bottom: 1px solid rgba(201,168,76,0.1);
+  }
+
+  .btn {
+    flex: 1;
+    background: rgba(201,168,76,0.1);
+    border: 1px solid rgba(201,168,76,0.3);
+    color: var(--gold);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 8px 4px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.5px;
+    text-align: center;
+  }
+  .btn:active { transform: scale(0.95); background: rgba(201,168,76,0.2); }
+  .btn.danger { border-color: rgba(192,57,43,0.5); color: #e57373; }
+  .btn.danger:active { background: rgba(192,57,43,0.2); }
+  .btn:disabled { opacity: 0.3; pointer-events: none; }
+
+  /* === BOARD WRAPPER === */
+  .board-wrap {
+    flex: 1;
+    overflow: auto;
+    padding: 16px 8px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+
+  #board {
+    position: relative;
+    /* will be sized by JS */
+  }
+
+  /* === TILES === */
+  .tile {
+    position: absolute;
+    background: var(--tile-bg);
+    border: 1.5px solid var(--tile-border);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s, background 0.1s;
+    box-shadow:
+      2px 2px 0 var(--tile-shadow),
+      3px 3px 6px rgba(0,0,0,0.4);
+    will-change: transform;
+    /* stacking context per layer handled by z-index */
+  }
+
+  .tile::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: calc(var(--radius) - 1px);
+    background: linear-gradient(135deg, rgba(255,255,255,0.6) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  .tile.blocked {
+    cursor: default;
+    filter: brightness(0.75) saturate(0.6);
+  }
+
+  .tile.free {
+    cursor: pointer;
+  }
+  .tile.free:active {
+    transform: translateY(-2px);
+    box-shadow: 2px 4px 12px rgba(0,0,0,0.5);
+  }
+
+  .tile.selected {
+    background: var(--tile-sel);
+    border-color: #f9a825;
+    box-shadow:
+      2px 2px 0 #b8860b,
+      0 0 14px rgba(249,168,37,0.6),
+      3px 3px 6px rgba(0,0,0,0.4);
+    z-index: 200 !important;
+    transform: translateY(-3px);
+  }
+
+  .tile.matched {
+    animation: matchPop 0.35s ease forwards;
+  }
+
+  @keyframes matchPop {
+    0%   { transform: scale(1); opacity: 1; }
+    40%  { transform: scale(1.15); opacity: 0.8; background: var(--tile-matched); }
+    100% { transform: scale(0); opacity: 0; }
+  }
+
+  /* === HINT PULSE === */
+  .tile.hint {
+    animation: hintPulse 0.8s ease-in-out 3;
+  }
+  @keyframes hintPulse {
+    0%, 100% { box-shadow: 2px 2px 0 var(--tile-shadow), 3px 3px 6px rgba(0,0,0,0.4); }
+    50% { box-shadow: 2px 2px 0 var(--tile-shadow), 0 0 18px rgba(100,220,255,0.8), 3px 3px 6px rgba(0,0,0,0.4); background: #e3f2fd; border-color: #4fc3f7; }
+  }
+
+  /* === OVERLAY === */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+    padding: 32px;
+    text-align: center;
+  }
+  .overlay.show { display: flex; }
+
+  .overlay-icon { font-size: 64px; animation: popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275); }
+  @keyframes popIn { from { transform: scale(0) rotate(-20deg); } to { transform: scale(1) rotate(0); } }
+
+  .overlay-title {
+    font-family: 'Cinzel Decorative', serif;
+    font-size: 26px;
+    color: var(--gold);
+    text-shadow: 0 0 30px rgba(201,168,76,0.6);
+  }
+
+  .overlay-sub {
+    font-size: 14px;
+    color: var(--gold-light);
+    opacity: 0.8;
+    max-width: 280px;
+    line-height: 1.5;
+  }
+
+  .overlay-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    width: 100%;
+    max-width: 280px;
+  }
+
+  .ov-stat {
+    background: rgba(201,168,76,0.1);
+    border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .ov-stat-val { font-size: 22px; font-weight: bold; color: var(--gold-light); }
+  .ov-stat-lbl { font-size: 10px; opacity: 0.6; text-transform: uppercase; letter-spacing: 1px; }
+
+  .overlay-btns { display: flex; gap: 12px; width: 100%; max-width: 280px; }
+  .overlay-btns .btn { font-size: 14px; padding: 12px; }
+
+  /* === PROGRESS BAR === */
+  .progress-wrap {
+    padding: 4px 16px 8px;
+  }
+  .progress-bar-bg {
+    height: 4px;
+    background: rgba(255,255,255,0.07);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    opacity: 0.5;
+    margin-top: 3px;
+    letter-spacing: 0.5px;
+  }
+
+  /* === BEST SCORE === */
+  .best-wrap {
+    text-align: center;
+    font-size: 11px;
+    opacity: 0.45;
+    padding-bottom: 6px;
+    letter-spacing: 1px;
+  }
+
+  /* === TOAST === */
+  #toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(30,30,40,0.95);
+    border: 1px solid rgba(201,168,76,0.4);
+    color: var(--gold-light);
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+    pointer-events: none;
+    z-index: 500;
+    white-space: nowrap;
+  }
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* === LAYOUT PICKER === */
+  .layout-bar {
+    display: flex;
+    gap: 6px;
+    padding: 6px 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    border-bottom: 1px solid rgba(201,168,76,0.1);
+  }
+  .layout-bar::-webkit-scrollbar { display: none; }
+
+  .layout-btn {
+    flex-shrink: 0;
+    background: rgba(201,168,76,0.08);
+    border: 1px solid rgba(201,168,76,0.2);
+    color: rgba(201,168,76,0.6);
+    font-family: inherit;
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .layout-btn.active {
+    background: rgba(201,168,76,0.2);
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+  .layout-btn:active { transform: scale(0.95); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="logo">🀄 Mahjong</div>
+    <div class="stats">
+      <div class="stat"><span class="stat-val" id="pairsLeft">0</span><span class="stat-lbl">Left</span></div>
+      <div class="stat"><span class="stat-val" id="timerVal">0:00</span><span class="stat-lbl">Time</span></div>
+      <div class="stat"><span class="stat-val" id="movesVal">0</span><span class="stat-lbl">Moves</span></div>
+    </div>
+  </header>
+
+  <div class="layout-bar" id="layoutBar"></div>
+
+  <div class="progress-wrap">
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill" style="width:0%"></div></div>
+    <div class="progress-label"><span id="progressLeft">0 pairs left</span><span id="progressTotal"></span></div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn" id="btnUndo">↩ Undo</button>
+    <button class="btn" id="btnHint">💡 Hint</button>
+    <button class="btn" id="btnShuffle">🔀 Shuffle</button>
+    <button class="btn danger" id="btnNew">✦ New</button>
+  </div>
+
+  <div class="best-wrap" id="bestWrap"></div>
+
+  <div class="board-wrap">
+    <div id="board"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div class="overlay" id="overlayWin">
+  <div class="overlay-icon">🏆</div>
+  <div class="overlay-title">Victory!</div>
+  <div class="overlay-sub">All tiles cleared. Excellent work!</div>
+  <div class="overlay-stats">
+    <div class="ov-stat"><div class="ov-stat-val" id="winTime">-</div><div class="ov-stat-lbl">Time</div></div>
+    <div class="ov-stat"><div class="ov-stat-val" id="winMoves">-</div><div class="ov-stat-lbl">Moves</div></div>
+    <div class="ov-stat"><div class="ov-stat-val" id="winScore">-</div><div class="ov-stat-lbl">Score</div></div>
+    <div class="ov-stat"><div class="ov-stat-val" id="winBest">-</div><div class="ov-stat-lbl">Best</div></div>
+  </div>
+  <div class="overlay-btns">
+    <button class="btn" id="btnWinNew">New Game</button>
+    <button class="btn" id="btnWinReplay">Replay</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlayStuck">
+  <div class="overlay-icon">😵</div>
+  <div class="overlay-title">No Moves!</div>
+  <div class="overlay-sub">No more valid pairs available. Shuffle the board or start fresh.</div>
+  <div class="overlay-btns">
+    <button class="btn" id="btnStuckShuffle">🔀 Shuffle</button>
+    <button class="btn danger" id="btnStuckNew">New Game</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════
+// TILE DEFINITIONS
+// Each group of 4 identical = one "suit" entry
+// ═══════════════════════════════════════════
+const SUITS = [
+  // Characters (man)
+  { emoji: '1️⃣', id: 'c1' }, { emoji: '2️⃣', id: 'c2' }, { emoji: '3️⃣', id: 'c3' },
+  { emoji: '4️⃣', id: 'c4' }, { emoji: '5️⃣', id: 'c5' }, { emoji: '6️⃣', id: 'c6' },
+  { emoji: '7️⃣', id: 'c7' }, { emoji: '8️⃣', id: 'c8' }, { emoji: '9️⃣', id: 'c9' },
+  // Bamboo
+  { emoji: '🎋', id: 'b1' }, { emoji: '🎍', id: 'b2' }, { emoji: '🌿', id: 'b3' },
+  { emoji: '🌱', id: 'b4' }, { emoji: '🍃', id: 'b5' }, { emoji: '🌾', id: 'b6' },
+  { emoji: '🌴', id: 'b7' }, { emoji: '🌲', id: 'b8' }, { emoji: '🌳', id: 'b9' },
+  // Circles
+  { emoji: '🔴', id: 'o1' }, { emoji: '🟠', id: 'o2' }, { emoji: '🟡', id: 'o3' },
+  { emoji: '🟢', id: 'o4' }, { emoji: '🔵', id: 'o5' }, { emoji: '🟣', id: 'o6' },
+  { emoji: '⚫', id: 'o7' }, { emoji: '⚪', id: 'o8' }, { emoji: '🟤', id: 'o9' },
+  // Winds
+  { emoji: '🌬️', id: 'w1' }, { emoji: '🌊', id: 'w2' }, { emoji: '🍃', id: 'w3' }, { emoji: '🔥', id: 'w4' },
+  // Dragons
+  { emoji: '🐉', id: 'd1' }, { emoji: '🐲', id: 'd2' }, { emoji: '☯️', id: 'd3' },
+  // Flowers (unique — any flower matches any flower, 4 types × 1 tile each → 2 pairs)
+  { emoji: '🌸', id: 'f1' }, { emoji: '🌺', id: 'f2' }, { emoji: '🌻', id: 'f3' }, { emoji: '🌹', id: 'f4' },
+  // Seasons (same — any season matches any season)
+  { emoji: '🌷', id: 's1' }, { emoji: '🍂', id: 's2' }, { emoji: '❄️', id: 's3' }, { emoji: '☀️', id: 's4' },
+];
+
+// Group by matchability: flowers match each other, seasons match each other, rest match by id
+// For simplicity we treat each id as its own match group (flowers/seasons get unique ids so they pair exactly)
+
+// ═══════════════════════════════════════════
+// LAYOUTS  (col, row, layer)
+// ═══════════════════════════════════════════
+const LAYOUTS = {
+  turtle: {
+    name: '🐢 Turtle',
+    build() {
+      const pos = [];
+      // Layer 0: main 12×8 grid (exclude corners)
+      for (let r = 0; r < 8; r++)
+        for (let c = 0; c < 12; c++)
+          if (!((r === 0 || r === 7) && (c < 2 || c > 9)))
+            pos.push([c, r, 0]);
+      // Layer 1: 8×6
+      for (let r = 1; r < 7; r++)
+        for (let c = 2; c < 10; c++)
+          pos.push([c, r, 1]);
+      // Layer 2: 4×4
+      for (let r = 2; r < 6; r++)
+        for (let c = 4; c < 8; c++)
+          pos.push([c, r, 2]);
+      // Layer 3: 2×2
+      for (let r = 3; r < 5; r++)
+        for (let c = 5; c < 7; c++)
+          pos.push([c, r, 3]);
+      // Top
+      pos.push([5.5, 3.5, 4]);
+      // Left/right singles
+      pos.push([-1, 3.5, 0]);
+      pos.push([13, 3.5, 0]);
+      return pos;
+    }
+  },
+  pyramid: {
+    name: '⛩️ Gate',
+    build() {
+      const pos = [];
+      // rows 0-7, each row smaller
+      const rows = [12, 10, 8, 6, 4, 2, 1, 1];
+      const offsets = [0, 1, 2, 3, 4, 5, 5.5, 5.5];
+      rows.forEach((w, r) => {
+        for (let c = 0; c < w; c++)
+          pos.push([offsets[r] + c, r, r > 4 ? r - 4 : 0]);
+      });
+      return pos;
+    }
+  },
+  cross: {
+    name: '✚ Cross',
+    build() {
+      const pos = [];
+      // Horizontal bar
+      for (let c = 0; c < 14; c++) pos.push([c, 3, 0]), pos.push([c, 4, 0]);
+      // Vertical bar
+      for (let r = 0; r < 10; r++) pos.push([6, r, 0]), pos.push([7, r, 0]);
+      // Remove duplicates
+      const seen = new Set();
+      return pos.filter(([c, r, l]) => {
+        const k = `${c},${r},${l}`;
+        if (seen.has(k)) return false;
+        seen.add(k); return true;
+      });
+    }
+  },
+  dragon: {
+    name: '🐉 Dragon',
+    build() {
+      const pos = [];
+      // Body
+      for (let c = 2; c < 12; c++) pos.push([c, 3, 0]), pos.push([c, 4, 0]);
+      // Head
+      for (let r = 1; r < 7; r++) pos.push([0, r, 0]), pos.push([1, r, 0]);
+      // Tail
+      pos.push([12, 2, 0]); pos.push([12, 5, 0]);
+      pos.push([13, 1, 0]); pos.push([13, 6, 0]);
+      // Spine (layer 1)
+      for (let c = 3; c < 11; c++) pos.push([c, 3.5, 1]);
+      // Eyes
+      pos.push([0.5, 2, 1]); pos.push([0.5, 5, 1]);
+      return pos;
+    }
+  }
+};
+
+// ═══════════════════════════════════════════
+// GAME STATE
+// ═══════════════════════════════════════════
+let state = {
+  layoutKey: 'turtle',
+  tiles: [],        // { id, emoji, matchId, col, row, layer, removed, el }
+  selected: null,
+  moves: 0,
+  startTime: null,
+  elapsed: 0,
+  timerRunning: false,
+  undoStack: [],    // [{id1, id2}] for undo
+  seed: 0,
+  totalPairs: 0,
+  removedPairs: 0,
+};
+
+// ═══════════════════════════════════════════
+// PERSISTENCE
+// ═══════════════════════════════════════════
+const LS_STATE = 'mj_state_v2';
+const LS_BEST  = 'mj_best_v2';
+
+function saveState() {
+  try {
+    const data = {
+      layoutKey: state.layoutKey,
+      tiles: state.tiles.map(t => ({
+        id: t.id, emoji: t.emoji, matchId: t.matchId,
+        col: t.col, row: t.row, layer: t.layer, removed: t.removed
+      })),
+      moves: state.moves,
+      elapsed: state.elapsed + (state.timerRunning ? (Date.now() - state.startTime) : 0),
+      seed: state.seed,
+      totalPairs: state.totalPairs,
+      removedPairs: state.removedPairs,
+    };
+    localStorage.setItem(LS_STATE, JSON.stringify(data));
+  } catch(e) {}
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_STATE);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) { return null; }
+}
+
+function clearSavedState() {
+  localStorage.removeItem(LS_STATE);
+}
+
+function getBest(layout) {
+  try {
+    const b = JSON.parse(localStorage.getItem(LS_BEST) || '{}');
+    return b[layout] || null;
+  } catch(e) { return null; }
+}
+
+function saveBest(layout, score) {
+  try {
+    const b = JSON.parse(localStorage.getItem(LS_BEST) || '{}');
+    if (!b[layout] || score > b[layout]) b[layout] = score;
+    localStorage.setItem(LS_BEST, JSON.stringify(b));
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════
+// LAYOUT BAR
+// ═══════════════════════════════════════════
+function buildLayoutBar() {
+  const bar = document.getElementById('layoutBar');
+  bar.innerHTML = '';
+  Object.entries(LAYOUTS).forEach(([key, layout]) => {
+    const b = document.createElement('button');
+    b.className = 'layout-btn' + (key === state.layoutKey ? ' active' : '');
+    b.textContent = layout.name;
+    b.addEventListener('click', () => {
+      if (key === state.layoutKey) return;
+      state.layoutKey = key;
+      clearSavedState();
+      newGame();
+    });
+    bar.appendChild(b);
+  });
+}
+
+// ═══════════════════════════════════════════
+// RNG (seeded)
+// ═══════════════════════════════════════════
+function seededRNG(seed) {
+  let s = seed;
+  return () => {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 0xffffffff;
+  };
+}
+
+function shuffle(arr, rng) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// ═══════════════════════════════════════════
+// TILE GENERATION
+// ═══════════════════════════════════════════
+function generateTiles(positions, seed) {
+  const rng = seededRNG(seed);
+  const count = positions.length;
+  if (count % 2 !== 0) positions.pop(); // ensure even
+
+  // Build a pool of tile types (pairs)
+  const pool = [];
+  const suitsCount = SUITS.length;
+  let si = 0;
+  while (pool.length < count) {
+    const suit = SUITS[si % suitsCount];
+    pool.push({ emoji: suit.emoji, matchId: suit.id });
+    pool.push({ emoji: suit.emoji, matchId: suit.id });
+    si++;
+  }
+  pool.length = count;
+  shuffle(pool, rng);
+
+  return positions.map(([col, row, layer], i) => ({
+    id: i,
+    emoji: pool[i].emoji,
+    matchId: pool[i].matchId,
+    col, row, layer,
+    removed: false,
+    el: null,
+  }));
+}
+
+// ═══════════════════════════════════════════
+// FREE TILE CHECK
+// A tile is FREE if:
+//  1. Nothing on top of it (higher layer overlapping)
+//  2. Left OR right side is open
+// ═══════════════════════════════════════════
+function isFree(tile, tiles) {
+  if (tile.removed) return false;
+  const active = tiles.filter(t => !t.removed && t.id !== tile.id);
+
+  // Check above: a tile at layer+1 that overlaps (within 1 unit col AND row)
+  const blocked_above = active.some(t =>
+    t.layer === tile.layer + 1 &&
+    Math.abs(t.col - tile.col) < 1 &&
+    Math.abs(t.row - tile.row) < 1
+  );
+  if (blocked_above) return false;
+
+  // Check left: any tile same layer whose right edge touches our left
+  const blocked_left = active.some(t =>
+    t.layer === tile.layer &&
+    Math.abs(t.row - tile.row) < 1 &&
+    t.col + 1 === tile.col
+  );
+
+  // Check right
+  const blocked_right = active.some(t =>
+    t.layer === tile.layer &&
+    Math.abs(t.row - tile.row) < 1 &&
+    t.col - 1 === tile.col
+  );
+
+  return !blocked_left || !blocked_right;
+}
+
+function getFreeTiles() {
+  return state.tiles.filter(t => !t.removed && isFree(t, state.tiles));
+}
+
+function hasValidMoves() {
+  const free = getFreeTiles();
+  for (let i = 0; i < free.length; i++)
+    for (let j = i + 1; j < free.length; j++)
+      if (free[i].matchId === free[j].matchId) return true;
+  return false;
+}
+
+// ═══════════════════════════════════════════
+// BOARD RENDER
+// ═══════════════════════════════════════════
+const TILE_W = 46;
+const TILE_H = 54;
+const LAYER_OFFSET_X = 4;
+const LAYER_OFFSET_Y = 4;
+
+function renderBoard() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+
+  const active = state.tiles.filter(t => !t.removed);
+  if (active.length === 0) return;
+
+  const minC = Math.min(...active.map(t => t.col));
+  const minR = Math.min(...active.map(t => t.row));
+  const maxC = Math.max(...active.map(t => t.col));
+  const maxR = Math.max(...active.map(t => t.row));
+  const maxL = Math.max(...active.map(t => t.layer));
+
+  const bw = (maxC - minC + 1) * TILE_W + maxL * LAYER_OFFSET_X + 8;
+  const bh = (maxR - minR + 1) * TILE_H + maxL * LAYER_OFFSET_Y + 8;
+
+  board.style.width  = bw + 'px';
+  board.style.height = bh + 'px';
+
+  state.tiles.forEach(tile => {
+    if (tile.removed) return;
+    const el = document.createElement('div');
+    el.className = 'tile';
+    el.dataset.id = tile.id;
+
+    const x = (tile.col - minC) * TILE_W + tile.layer * LAYER_OFFSET_X;
+    const y = (tile.row - minR) * TILE_H + tile.layer * LAYER_OFFSET_Y;
+    el.style.left   = x + 'px';
+    el.style.top    = y + 'px';
+    el.style.width  = TILE_W + 'px';
+    el.style.height = TILE_H + 'px';
+    el.style.zIndex = tile.layer * 10 + 1;
+    el.textContent  = tile.emoji;
+
+    tile.el = el;
+    el.addEventListener('click', () => onTileClick(tile));
+    board.appendChild(el);
+  });
+
+  updateFreeState();
+}
+
+function updateFreeState() {
+  state.tiles.forEach(tile => {
+    if (!tile.el || tile.removed) return;
+    const free = isFree(tile, state.tiles);
+    tile.el.classList.toggle('free', free);
+    tile.el.classList.toggle('blocked', !free);
+    if (state.selected === tile.id) tile.el.classList.add('selected');
+  });
+}
+
+// ═══════════════════════════════════════════
+// TILE CLICK
+// ═══════════════════════════════════════════
+function onTileClick(tile) {
+  if (tile.removed) return;
+  if (!isFree(tile, state.tiles)) {
+    showToast('Tile is blocked');
+    return;
+  }
+
+  if (!state.timerRunning) startTimer();
+
+  if (state.selected === null) {
+    state.selected = tile.id;
+    tile.el.classList.add('selected');
+  } else if (state.selected === tile.id) {
+    state.selected = null;
+    tile.el.classList.remove('selected');
+  } else {
+    const prev = state.tiles.find(t => t.id === state.selected);
+    if (prev && prev.matchId === tile.matchId) {
+      // MATCH!
+      matchTiles(prev, tile);
+    } else {
+      // No match — swap selection
+      prev.el.classList.remove('selected');
+      state.selected = tile.id;
+      tile.el.classList.add('selected');
+      showToast('No match');
+    }
+  }
+}
+
+function matchTiles(a, b) {
+  state.moves++;
+  state.removedPairs++;
+  state.undoStack.push({ a: a.id, b: b.id });
+
+  [a, b].forEach(t => {
+    t.el.classList.remove('selected');
+    t.el.classList.add('matched');
+    t.el.addEventListener('animationend', () => {
+      t.removed = true;
+      if (t.el.parentNode) t.el.parentNode.removeChild(t.el);
+      t.el = null;
+      updateProgress();
+      updateFreeState();
+      saveState();
+      checkEnd();
+    }, { once: true });
+  });
+
+  state.selected = null;
+  updateHUD();
+}
+
+// ═══════════════════════════════════════════
+// UNDO
+// ═══════════════════════════════════════════
+function undo() {
+  if (state.undoStack.length === 0) { showToast('Nothing to undo'); return; }
+  const { a: aid, b: bid } = state.undoStack.pop();
+  const ta = state.tiles.find(t => t.id === aid);
+  const tb = state.tiles.find(t => t.id === bid);
+  ta.removed = false;
+  tb.removed = false;
+  state.removedPairs--;
+  state.moves++;
+  state.selected = null;
+  renderBoard();
+  updateHUD();
+  updateProgress();
+  saveState();
+  showToast('Undone ↩');
+}
+
+// ═══════════════════════════════════════════
+// HINT
+// ═══════════════════════════════════════════
+function hint() {
+  const free = getFreeTiles();
+  for (let i = 0; i < free.length; i++) {
+    for (let j = i + 1; j < free.length; j++) {
+      if (free[i].matchId === free[j].matchId) {
+        [free[i], free[j]].forEach(t => {
+          t.el.classList.add('hint');
+          t.el.addEventListener('animationend', () => t.el.classList.remove('hint'), { once: true });
+        });
+        return;
+      }
+    }
+  }
+  showToast('No moves left!');
+}
+
+// ═══════════════════════════════════════════
+// SHUFFLE remaining tiles
+// ═══════════════════════════════════════════
+function shuffleBoard() {
+  const active = state.tiles.filter(t => !t.removed);
+  const rng = seededRNG(Date.now());
+  const emojis = active.map(t => ({ emoji: t.emoji, matchId: t.matchId }));
+  shuffle(emojis, rng);
+  active.forEach((t, i) => {
+    t.emoji = emojis[i].emoji;
+    t.matchId = emojis[i].matchId;
+  });
+  state.selected = null;
+  renderBoard();
+  saveState();
+  showToast('Board shuffled 🔀');
+}
+
+// ═══════════════════════════════════════════
+// CHECK WIN / STUCK
+// ═══════════════════════════════════════════
+function checkEnd() {
+  const remaining = state.tiles.filter(t => !t.removed);
+  if (remaining.length === 0) {
+    stopTimer();
+    showWin();
+    return;
+  }
+  if (!hasValidMoves()) {
+    document.getElementById('overlayStuck').classList.add('show');
+  }
+}
+
+// ═══════════════════════════════════════════
+// WIN SCREEN
+// ═══════════════════════════════════════════
+function showWin() {
+  clearSavedState();
+  const secs = Math.floor(state.elapsed / 1000);
+  const score = Math.max(0, 10000 - secs * 2 - state.moves * 5);
+  const best = getBest(state.layoutKey);
+  saveBest(state.layoutKey, score);
+
+  document.getElementById('winTime').textContent  = fmtTime(secs);
+  document.getElementById('winMoves').textContent = state.moves;
+  document.getElementById('winScore').textContent = score;
+  document.getElementById('winBest').textContent  = Math.max(score, best || 0);
+  document.getElementById('overlayWin').classList.add('show');
+}
+
+// ═══════════════════════════════════════════
+// TIMER
+// ═══════════════════════════════════════════
+let timerInterval = null;
+
+function startTimer() {
+  state.startTime = Date.now();
+  state.timerRunning = true;
+  timerInterval = setInterval(tickTimer, 500);
+}
+
+function stopTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  if (state.timerRunning && state.startTime) {
+    state.elapsed += Date.now() - state.startTime;
+    state.startTime = null;
+  }
+  state.timerRunning = false;
+}
+
+function tickTimer() {
+  const total = state.elapsed + (state.startTime ? Date.now() - state.startTime : 0);
+  document.getElementById('timerVal').textContent = fmtTime(Math.floor(total / 1000));
+}
+
+function fmtTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${String(sec).padStart(2,'0')}`;
+}
+
+// ═══════════════════════════════════════════
+// HUD & PROGRESS
+// ═══════════════════════════════════════════
+function updateHUD() {
+  const remaining = state.tiles.filter(t => !t.removed).length / 2;
+  document.getElementById('pairsLeft').textContent = remaining;
+  document.getElementById('movesVal').textContent  = state.moves;
+
+  const best = getBest(state.layoutKey);
+  const bw = document.getElementById('bestWrap');
+  bw.textContent = best ? `Best score: ${best}` : '';
+}
+
+function updateProgress() {
+  const total = state.totalPairs;
+  const done  = state.removedPairs;
+  const pct   = total > 0 ? (done / total * 100).toFixed(1) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLeft').textContent = `${total - done} pairs left`;
+  document.getElementById('progressTotal').textContent = `${done}/${total}`;
+  updateHUD();
+}
+
+// ═══════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1600);
+}
+
+// ═══════════════════════════════════════════
+// NEW GAME
+// ═══════════════════════════════════════════
+function newGame(seed) {
+  stopTimer();
+  document.getElementById('overlayWin').classList.remove('show');
+  document.getElementById('overlayStuck').classList.remove('show');
+
+  const positions = LAYOUTS[state.layoutKey].build();
+  state.seed = seed || Date.now();
+  state.tiles = generateTiles(positions, state.seed);
+  state.selected = null;
+  state.moves = 0;
+  state.elapsed = 0;
+  state.startTime = null;
+  state.timerRunning = false;
+  state.undoStack = [];
+  state.totalPairs = state.tiles.length / 2;
+  state.removedPairs = 0;
+
+  buildLayoutBar();
+  renderBoard();
+  updateProgress();
+  updateHUD();
+  document.getElementById('timerVal').textContent = '0:00';
+  clearSavedState();
+}
+
+// ═══════════════════════════════════════════
+// RESTORE SAVED
+// ═══════════════════════════════════════════
+function restoreGame(saved) {
+  state.layoutKey    = saved.layoutKey || 'turtle';
+  state.moves        = saved.moves || 0;
+  state.elapsed      = saved.elapsed || 0;
+  state.seed         = saved.seed;
+  state.totalPairs   = saved.totalPairs;
+  state.removedPairs = saved.removedPairs;
+  state.selected     = null;
+  state.timerRunning = false;
+  state.startTime    = null;
+  state.undoStack    = [];
+
+  state.tiles = saved.tiles.map(t => ({ ...t, el: null }));
+
+  buildLayoutBar();
+  renderBoard();
+  updateProgress();
+  updateHUD();
+  document.getElementById('timerVal').textContent = fmtTime(Math.floor(state.elapsed / 1000));
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+function init() {
+  const saved = loadState();
+  if (saved && saved.tiles && saved.tiles.some(t => !t.removed)) {
+    restoreGame(saved);
+    showToast('Game restored ✦');
+  } else {
+    newGame();
+  }
+
+  document.getElementById('btnNew').addEventListener('click', newGame);
+  document.getElementById('btnUndo').addEventListener('click', undo);
+  document.getElementById('btnHint').addEventListener('click', hint);
+  document.getElementById('btnShuffle').addEventListener('click', shuffleBoard);
+  document.getElementById('btnWinNew').addEventListener('click', newGame);
+  document.getElementById('btnWinReplay').addEventListener('click', () => newGame(state.seed));
+  document.getElementById('btnStuckShuffle').addEventListener('click', () => {
+    document.getElementById('overlayStuck').classList.remove('show');
+    shuffleBoard();
+    if (!hasValidMoves()) showToast('Still no moves — shuffle again?');
+  });
+  document.getElementById('btnStuckNew').addEventListener('click', newGame);
+
+  // Pause timer on visibility change
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && state.timerRunning) {
+      state.elapsed += Date.now() - state.startTime;
+      state.startTime = null;
+      state.timerRunning = false;
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+      saveState();
+    } else if (!document.hidden && state.moves > 0 && !state.timerRunning) {
+      // resume on return only if game was in progress
+      startTimer();
+    }
+  });
+}
+
+init();
+</script>
+</body>
+</html>
