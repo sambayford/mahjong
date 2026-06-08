@@ -804,17 +804,22 @@ function matchTiles(a, b) {
   state.removedPairs++;
   state.undoStack.push({ a: a.id, b: b.id });
 
+  let doneCount = 0;
+
   [a, b].forEach(t => {
     t.el.classList.remove('selected');
     t.el.classList.add('matched');
     t.el.addEventListener('animationend', () => {
       t.removed = true;
-      if (t.el.parentNode) t.el.parentNode.removeChild(t.el);
+      if (t.el && t.el.parentNode) t.el.parentNode.removeChild(t.el);
       t.el = null;
-      updateProgress();
-      updateFreeState();
-      saveState();
-      checkEnd();
+      doneCount++;
+      if (doneCount === 2) {
+        updateProgress();
+        updateFreeState();
+        saveState();
+        checkEnd();
+      }
     }, { once: true });
   });
 
