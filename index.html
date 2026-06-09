@@ -50,7 +50,7 @@
   #app {
     position: relative;
     z-index: 1;
-    width: 480px;
+    width: 100vw;
     transform-origin: top left;
     display: flex;
     flex-direction: column;
@@ -849,7 +849,7 @@ function renderBoard() {
   });
 
   updateFreeState();
-  requestAnimationFrame(() => fitBoard(false));
+  requestAnimationFrame(() => requestAnimationFrame(() => fitBoard(false)));
 }
 
 function updateFreeState() {
@@ -867,26 +867,23 @@ function fitBoard(animate) {
   const board = document.getElementById('board');
   const wrap  = document.querySelector('.board-wrap');
 
-  // Scale board to fit within app content width (480 - 16px left - 16px right)
-  const availW = 448;
+  // Reset board transform for clean measurement
+  app.style.transform   = 'none';
+  board.style.transform = 'none';
+  wrap.style.height     = '';
+
+  const appW   = app.offsetWidth;
   const boardW = parseFloat(board.style.width) || board.offsetWidth;
   const boardH = parseFloat(board.style.height) || board.offsetHeight;
-  const boardScale = Math.min(1, availW / boardW);
 
-  board.style.transition    = 'none';
-  board.style.transform     = `scale(${boardScale})`;
+  // Scale board to fit within app content (minus 16px left + 16px right padding)
+  const boardScale   = Math.min(1, (appW - 32) / boardW);
+  const scaledBoardH = Math.ceil(boardH * boardScale);
+
+  board.style.transition      = 'none';
+  board.style.transform       = `scale(${boardScale})`;
   board.style.transformOrigin = 'top left';
-  wrap.style.height = Math.ceil(boardH * boardScale + 32) + 'px';
-
-  // Reset app scale to get accurate height measurement
-  app.style.transform = 'none';
-  const appW = 480;
-  const appH = app.offsetHeight;
-  const appScale = Math.min(window.innerWidth / appW, window.innerHeight / appH);
-
-  app.style.transition = 'none';
-  app.style.transform  = `scale(${appScale})`;
-  document.body.style.height = Math.ceil(appH * appScale) + 'px';
+  wrap.style.height           = (scaledBoardH + 32) + 'px';
 }
 
 // ═══════════════════════════════════════════
