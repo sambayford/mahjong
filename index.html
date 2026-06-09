@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=5.0, user-scalable=yes">
 <title>🀄 Mahjong</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Cinzel+Decorative:wght@700&display=swap');
@@ -30,8 +30,7 @@
     background: var(--bg);
     color: var(--gold);
     font-family: 'Noto Serif SC', serif;
-    min-height: 100vh;
-    overflow-x: hidden;
+    overflow: hidden;
     user-select: none;
   }
 
@@ -51,11 +50,11 @@
   #app {
     position: relative;
     z-index: 1;
-    max-width: 480px;
-    margin: 0 auto;
-    min-height: 100vh;
+    width: 480px;
+    transform-origin: top left;
     display: flex;
     flex-direction: column;
+    padding-bottom: 32px;
   }
 
   /* === HEADER === */
@@ -116,11 +115,9 @@
   /* === BOARD WRAPPER === */
   .board-wrap {
     flex: 1;
-    overflow: auto;
-    padding: 16px 8px;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
+    overflow: visible;
+    padding: 16px 0 16px 16px;
+    position: relative;
   }
 
   #board {
@@ -146,6 +143,9 @@
     will-change: transform;
     /* stacking context per layer handled by z-index */
   }
+
+  .tile svg { display: block; pointer-events: none; }
+  .tile span { font-size: 22px; line-height: 1; pointer-events: none; }
 
   .tile::after {
     content: '';
@@ -418,14 +418,14 @@ const SUITS = [
   { emoji: '7️⃣', id: 'c7' }, { emoji: '8️⃣', id: 'c8' }, { emoji: '9️⃣', id: 'c9' },
   // Bamboo
   { emoji: '🎋', id: 'b1' }, { emoji: '🎍', id: 'b2' }, { emoji: '🌿', id: 'b3' },
-  { emoji: '🌱', id: 'b4' }, { emoji: '🍃', id: 'b5' }, { emoji: '🌾', id: 'b6' },
+  { emoji: '🌱', id: 'b4' }, { emoji: '🪴', id: 'b5' }, { emoji: '🌾', id: 'b6' },
   { emoji: '🌴', id: 'b7' }, { emoji: '🌲', id: 'b8' }, { emoji: '🌳', id: 'b9' },
-  // Circles
-  { emoji: '🔴', id: 'o1' }, { emoji: '🟠', id: 'o2' }, { emoji: '🟡', id: 'o3' },
-  { emoji: '🟢', id: 'o4' }, { emoji: '🔵', id: 'o5' }, { emoji: '🟣', id: 'o6' },
-  { emoji: '⚫', id: 'o7' }, { emoji: '⚪', id: 'o8' }, { emoji: '🟤', id: 'o9' },
+  // Circles (rendered as dot grids via getTileContent)
+  { emoji: 'dots:1', id: 'o1' }, { emoji: 'dots:2', id: 'o2' }, { emoji: 'dots:3', id: 'o3' },
+  { emoji: 'dots:4', id: 'o4' }, { emoji: 'dots:5', id: 'o5' }, { emoji: 'dots:6', id: 'o6' },
+  { emoji: 'dots:7', id: 'o7' }, { emoji: 'dots:8', id: 'o8' }, { emoji: 'dots:9', id: 'o9' },
   // Winds
-  { emoji: '🌬️', id: 'w1' }, { emoji: '🌊', id: 'w2' }, { emoji: '🍃', id: 'w3' }, { emoji: '🔥', id: 'w4' },
+  { emoji: '🌬️', id: 'w1' }, { emoji: '🌊', id: 'w2' }, { emoji: '🌀', id: 'w3' }, { emoji: '🔥', id: 'w4' },
   // Dragons
   { emoji: '🐉', id: 'd1' }, { emoji: '🐲', id: 'd2' }, { emoji: '☯️', id: 'd3' },
   // Flowers (unique — any flower matches any flower, 4 types × 1 tile each → 2 pairs)
@@ -629,34 +629,94 @@ function shuffle(arr, rng) {
 }
 
 // ═══════════════════════════════════════════
-// TILE GENERATION
+// TILE GENERATION — guaranteed solvable
+// Uses reverse simulation: repeatedly pick two
+// free tiles and assign them a matching pair.
 // ═══════════════════════════════════════════
 function generateTiles(positions, seed) {
   const rng = seededRNG(seed);
+  if (positions.length % 2 !== 0) positions.pop();
   const count = positions.length;
-  if (count % 2 !== 0) positions.pop(); // ensure even
 
-  // Build a pool of tile types (pairs)
-  const pool = [];
-  const suitsCount = SUITS.length;
+  // Build tile objects with no matchId yet
+  const tiles = positions.map(([col, row, layer], i) => ({
+    id: i, emoji: null, matchId: null,
+    col, row, layer, removed: false, el: null,
+  }));
+
+  // Build suit pool (pairs)
+  const suitPool = [];
   let si = 0;
-  while (pool.length < count) {
-    const suit = SUITS[si % suitsCount];
-    pool.push({ emoji: suit.emoji, matchId: suit.id });
-    pool.push({ emoji: suit.emoji, matchId: suit.id });
+  while (suitPool.length < count) {
+    const suit = SUITS[si % SUITS.length];
+    suitPool.push({ emoji: suit.emoji, matchId: suit.id });
+    suitPool.push({ emoji: suit.emoji, matchId: suit.id });
     si++;
   }
-  pool.length = count;
-  shuffle(pool, rng);
+  suitPool.length = count;
+  shuffle(suitPool, rng);
+  let suitIdx = 0;
 
-  return positions.map(([col, row, layer], i) => ({
-    id: i,
-    emoji: pool[i].emoji,
-    matchId: pool[i].matchId,
-    col, row, layer,
-    removed: false,
-    el: null,
-  }));
+  // Reverse simulation: assign pairs to free tiles until all assigned
+  const unassigned = new Set(tiles.map(t => t.id));
+
+  // isFree check against a working set
+  function isFreeSim(tile, tileMap) {
+    const others = [...tileMap.values()].filter(t => t.id !== tile.id);
+    const above = others.some(t =>
+      t.layer === tile.layer + 1 &&
+      Math.abs(t.col - tile.col) < 1 &&
+      Math.abs(t.row - tile.row) < 1
+    );
+    if (above) return false;
+    const leftBlocked  = others.some(t => t.layer === tile.layer && Math.abs(t.row - tile.row) < 1 && t.col + 1 === tile.col);
+    const rightBlocked = others.some(t => t.layer === tile.layer && Math.abs(t.row - tile.row) < 1 && t.col - 1 === tile.col);
+    return !leftBlocked || !rightBlocked;
+  }
+
+  // Working tile map (only unassigned tiles present)
+  const tileMap = new Map(tiles.map(t => [t.id, { ...t }]));
+
+  let attempts = 0;
+  while (unassigned.size > 0 && attempts < count * 20) {
+    attempts++;
+    // Get free tiles among unassigned
+    const freeIds = [...unassigned].filter(id => isFreeSim(tileMap.get(id), tileMap));
+    if (freeIds.length < 2) {
+      // Stuck — fall back to random assignment for remaining tiles
+      break;
+    }
+    // Pick two random free tiles
+    const i = Math.floor(rng() * freeIds.length);
+    let j = Math.floor(rng() * (freeIds.length - 1));
+    if (j >= i) j++;
+    const idA = freeIds[i];
+    const idB = freeIds[j];
+
+    // Assign a matching pair to both
+    const pair = suitPool[suitIdx++];
+    tiles[idA].emoji   = pair.emoji;
+    tiles[idA].matchId = pair.matchId;
+    tiles[idB].emoji   = pair.emoji;
+    tiles[idB].matchId = pair.matchId;
+
+    // Remove from working map and unassigned
+    tileMap.delete(idA);
+    tileMap.delete(idB);
+    unassigned.delete(idA);
+    unassigned.delete(idB);
+  }
+
+  // Assign any remaining unmatched tiles (fallback)
+  const remaining = [...unassigned];
+  for (let k = 0; k < remaining.length; k += 2) {
+    const pair = suitPool[suitIdx++] || suitPool[0];
+    const idA = remaining[k], idB = remaining[k + 1];
+    if (idA !== undefined) { tiles[idA].emoji = pair.emoji; tiles[idA].matchId = pair.matchId; }
+    if (idB !== undefined) { tiles[idB].emoji = pair.emoji; tiles[idB].matchId = pair.matchId; }
+  }
+
+  return tiles;
 }
 
 // ═══════════════════════════════════════════
@@ -707,6 +767,41 @@ function hasValidMoves() {
 }
 
 // ═══════════════════════════════════════════
+// DOT GRID RENDERER (Circle suit)
+// ═══════════════════════════════════════════
+// Dot positions for 1–9 in a 3×3 grid (col 0-2, row 0-2)
+const DOT_POSITIONS = {
+  1: [[1,1]],
+  2: [[1,0],[1,2]],
+  3: [[1,0],[1,1],[1,2]],
+  4: [[0,0],[2,0],[0,2],[2,2]],
+  5: [[0,0],[2,0],[1,1],[0,2],[2,2]],
+  6: [[0,0],[2,0],[0,1],[2,1],[0,2],[2,2]],
+  7: [[0,0],[2,0],[1,0],[0,1],[2,1],[0,2],[2,2]],  // top 3, mid 2 sides, bot 2
+  8: [[0,0],[1,0],[2,0],[0,1],[2,1],[0,2],[1,2],[2,2]],
+  9: [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2]],
+};
+
+// Colours cycling through the 9 circle tiles
+const DOT_COLORS = ['#e53935','#fb8c00','#fdd835','#43a047','#1e88e5','#8e24aa','#00897b','#6d4c41','#546e7a'];
+
+function getTileContent(emoji) {
+  if (!emoji.startsWith('dots:')) return `<span>${emoji}</span>`;
+  const n = parseInt(emoji.split(':')[1]);
+  const dots = DOT_POSITIONS[n] || [];
+  const color = DOT_COLORS[n - 1];
+  const sw = 36; const sh = 44; // svg canvas
+  const cellW = sw / 3; const cellH = sh / 3;
+  const r = 4.5;
+  const circles = dots.map(([cx, cy]) => {
+    const x = cellW * cx + cellW / 2;
+    const y = cellH * cy + cellH / 2;
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${color}" stroke="rgba(0,0,0,0.15)" stroke-width="0.5"/>`;
+  }).join('');
+  return `<svg width="${sw}" height="${sh}" viewBox="0 0 ${sw} ${sh}" xmlns="http://www.w3.org/2000/svg">${circles}</svg>`;
+}
+
+// ═══════════════════════════════════════════
 // BOARD RENDER
 // ═══════════════════════════════════════════
 const TILE_W = 46;
@@ -746,7 +841,7 @@ function renderBoard() {
     el.style.width  = TILE_W + 'px';
     el.style.height = TILE_H + 'px';
     el.style.zIndex = tile.layer * 10 + 1;
-    el.textContent  = tile.emoji;
+    el.innerHTML = getTileContent(tile.emoji);
 
     tile.el = el;
     el.addEventListener('click', () => onTileClick(tile));
@@ -754,6 +849,7 @@ function renderBoard() {
   });
 
   updateFreeState();
+  requestAnimationFrame(() => fitBoard(false));
 }
 
 function updateFreeState() {
@@ -764,6 +860,33 @@ function updateFreeState() {
     tile.el.classList.toggle('blocked', !free);
     if (state.selected === tile.id) tile.el.classList.add('selected');
   });
+}
+
+function fitBoard(animate) {
+  const app   = document.getElementById('app');
+  const board = document.getElementById('board');
+  const wrap  = document.querySelector('.board-wrap');
+
+  // Scale board to fit within app content width (480 - 16px left - 16px right)
+  const availW = 448;
+  const boardW = parseFloat(board.style.width) || board.offsetWidth;
+  const boardH = parseFloat(board.style.height) || board.offsetHeight;
+  const boardScale = Math.min(1, availW / boardW);
+
+  board.style.transition    = 'none';
+  board.style.transform     = `scale(${boardScale})`;
+  board.style.transformOrigin = 'top left';
+  wrap.style.height = Math.ceil(boardH * boardScale + 32) + 'px';
+
+  // Reset app scale to get accurate height measurement
+  app.style.transform = 'none';
+  const appW = 480;
+  const appH = app.offsetHeight;
+  const appScale = Math.min(window.innerWidth / appW, window.innerHeight / appH);
+
+  app.style.transition = 'none';
+  app.style.transform  = `scale(${appScale})`;
+  document.body.style.height = Math.ceil(appH * appScale) + 'px';
 }
 
 // ═══════════════════════════════════════════
@@ -841,6 +964,7 @@ function undo() {
   state.moves++;
   state.selected = null;
   renderBoard();
+  fitBoard(false);
   updateHUD();
   updateProgress();
   saveState();
