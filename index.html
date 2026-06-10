@@ -518,6 +518,118 @@ const LAYOUTS = {
       pos.push([0.5, 2, 1]); pos.push([0.5, 5, 1]);
       return pos;
     }
+  },
+  fortress: {
+    name: '🏯 Fortress',
+    build() {
+      const pos = [];
+      const dedup = new Set();
+      const add = (c, r, l) => { const k=`${c},${r},${l}`; if(!dedup.has(k)){dedup.add(k);pos.push([c,r,l]);} };
+      // Outer walls — full perimeter 16×10
+      for (let c = 0; c < 16; c++) { add(c,0,0); add(c,9,0); }
+      for (let r = 0; r < 10; r++) { add(0,r,0); add(15,r,0); }
+      // Inner walls — 12×6 perimeter
+      for (let c = 2; c < 14; c++) { add(c,2,0); add(c,7,0); }
+      for (let r = 2; r < 8; r++) { add(2,r,0); add(13,r,0); }
+      // Fill interior 10×4
+      for (let r = 3; r < 7; r++) for (let c = 3; c < 13; c++) add(c,r,0);
+      // Layer 1: 8×3 interior
+      for (let r = 3; r < 7; r++) for (let c = 4; c < 12; c++) add(c,r,1);
+      // Layer 2: 6×2
+      for (let r = 4; r < 6; r++) for (let c = 5; c < 11; c++) add(c,r,2);
+      // Layer 3: 4×2
+      for (let r = 4; r < 6; r++) for (let c = 6; c < 10; c++) add(c,r,3);
+      // Layer 4: 2×2 keep
+      for (let r = 4; r < 6; r++) for (let c = 7; c < 9; c++) add(c,r,4);
+      // Corner towers (layer 1)
+      add(0,0,1); add(15,0,1); add(0,9,1); add(15,9,1);
+      return pos;
+    }
+  },
+  empire: {
+    name: '🌏 Empire',
+    build() {
+      const pos = [];
+      const dedup = new Set();
+      const add = (c, r, l) => { const k=`${c},${r},${l}`; if(!dedup.has(k)){dedup.add(k);pos.push([c,r,l]);} };
+      // Base: full 18×10 grid
+      for (let r = 0; r < 10; r++) for (let c = 0; c < 18; c++) add(c,r,0);
+      // Layer 1: 14×8
+      for (let r = 1; r < 9; r++) for (let c = 2; c < 16; c++) add(c,r,1);
+      // Layer 2: 10×6
+      for (let r = 2; r < 8; r++) for (let c = 4; c < 14; c++) add(c,r,2);
+      // Layer 3: 6×4
+      for (let r = 3; r < 7; r++) for (let c = 6; c < 12; c++) add(c,r,3);
+      // Layer 4: 4×2
+      for (let r = 4; r < 6; r++) for (let c = 7; c < 11; c++) add(c,r,4);
+      // Layer 5: 2×2 peak
+      for (let r = 4; r < 6; r++) for (let c = 8; c < 10; c++) add(c,r,5);
+      return pos;
+    }
+  },
+  labyrinth: {
+    name: '🌀 Labyrinth',
+    build() {
+      const pos = [];
+      const dedup = new Set();
+      const add = (c, r, l) => { const k=`${c},${r},${l}`; if(!dedup.has(k)){dedup.add(k);pos.push([c,r,l]);} };
+      // Concentric rings on layer 0
+      // Ring 1: 20×12 perimeter
+      for (let c = 0; c < 20; c++) { add(c,0,0); add(c,11,0); }
+      for (let r = 1; r < 11; r++) { add(0,r,0); add(19,r,0); }
+      // Ring 2: 16×8 perimeter (offset 2)
+      for (let c = 2; c < 18; c++) { add(c,2,0); add(c,9,0); }
+      for (let r = 3; r < 9; r++) { add(2,r,0); add(17,r,0); }
+      // Ring 3: 12×4 perimeter (offset 4)
+      for (let c = 4; c < 16; c++) { add(c,4,0); add(c,7,0); }
+      for (let r = 5; r < 7; r++) { add(4,r,0); add(15,r,0); }
+      // Fill ring 3 interior
+      for (let r = 5; r < 7; r++) for (let c = 5; c < 15; c++) add(c,r,0);
+      // Corridors connecting rings (gaps intentional for gameplay)
+      for (let r = 1; r < 11; r++) { add(9,r,0); add(10,r,0); }
+      for (let c = 1; c < 19; c++) { add(c,5,0); add(c,6,0); }
+      // Layer 1: inner area
+      for (let r = 3; r < 9; r++) for (let c = 5; c < 15; c++) add(c,r,1);
+      // Layer 2: centre block
+      for (let r = 4; r < 8; r++) for (let c = 7; c < 13; c++) add(c,r,2);
+      // Layer 3: top
+      for (let r = 5; r < 7; r++) for (let c = 8; c < 12; c++) add(c,r,3);
+      return pos;
+    }
+  },
+  mountain: {
+    name: '🗻 Mountain',
+    build() {
+      const pos = [];
+      const dedup = new Set();
+      const add = (c, r, l) => { const k=`${c},${r},${l}`; if(!dedup.has(k)){dedup.add(k);pos.push([c,r,l]);} };
+      // Three peaks side by side, each a pyramid
+      const peaks = [0, 7, 14];
+      peaks.forEach(offset => {
+        // Base 6 wide
+        for (let c = 0; c < 6; c++) add(offset+c, 6, 0);
+        for (let c = 0; c < 6; c++) add(offset+c, 7, 0);
+        // Step up
+        for (let c = 1; c < 5; c++) add(offset+c, 4, 0);
+        for (let c = 1; c < 5; c++) add(offset+c, 5, 0);
+        for (let c = 1; c < 5; c++) add(offset+c, 4, 1);
+        for (let c = 1; c < 5; c++) add(offset+c, 5, 1);
+        // Mid
+        for (let c = 2; c < 4; c++) add(offset+c, 2, 0);
+        for (let c = 2; c < 4; c++) add(offset+c, 3, 0);
+        for (let c = 2; c < 4; c++) add(offset+c, 2, 1);
+        for (let c = 2; c < 4; c++) add(offset+c, 3, 1);
+        for (let c = 2; c < 4; c++) add(offset+c, 2, 2);
+        for (let c = 2; c < 4; c++) add(offset+c, 3, 2);
+        // Peak
+        add(offset+2.5, 1, 3);
+      });
+      // Valley floor connecting all three
+      for (let c = 0; c < 20; c++) { add(c, 8, 0); add(c, 9, 0); }
+      // Foothills layer 1
+      for (let c = 0; c < 20; c++) add(c, 8, 1);
+      return pos;
+    }
   }
 };
 
@@ -988,25 +1100,72 @@ function hint() {
 }
 
 // ═══════════════════════════════════════════
-// SHUFFLE remaining tiles
-// Retries until at least one valid match exists among free tiles
+// SHUFFLE — guaranteed solvable using same
+// reverse-simulation as generateTiles
 // ═══════════════════════════════════════════
 function shuffleBoard() {
   const active = state.tiles.filter(t => !t.removed);
   if (active.length < 2) return;
 
-  const emojis = active.map(t => ({ emoji: t.emoji, matchId: t.matchId }));
-  const MAX_TRIES = 200;
+  // Build suit pool from existing pairs (preserve pair counts)
+  const rng = seededRNG(Date.now());
+  const suitPool = active.map(t => ({ emoji: t.emoji, matchId: t.matchId }));
+  shuffle(suitPool, rng);
+  let suitIdx = 0;
 
-  for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
-    const rng = seededRNG(Date.now() + attempt * 7919);
-    const shuffled = [...emojis];
-    shuffle(shuffled, rng);
-    active.forEach((t, i) => {
-      t.emoji = shuffled[i].emoji;
-      t.matchId = shuffled[i].matchId;
-    });
-    if (hasValidMoves()) break;
+  // isFree check against a working map
+  function isFreeSim(tile, tileMap) {
+    const others = [...tileMap.values()].filter(t => t.id !== tile.id);
+    const above = others.some(t =>
+      t.layer === tile.layer + 1 &&
+      Math.abs(t.col - tile.col) < 1 &&
+      Math.abs(t.row - tile.row) < 1
+    );
+    if (above) return false;
+    const leftBlocked  = others.some(t => t.layer === tile.layer && Math.abs(t.row - tile.row) < 1 && t.col + 1 === tile.col);
+    const rightBlocked = others.some(t => t.layer === tile.layer && Math.abs(t.row - tile.row) < 1 && t.col - 1 === tile.col);
+    return !leftBlocked || !rightBlocked;
+  }
+
+  // Clear matchIds on active tiles and build working map
+  active.forEach(t => { t.emoji = null; t.matchId = null; });
+  const tileMap = new Map(active.map(t => [t.id, { ...t }]));
+  const unassigned = new Set(active.map(t => t.id));
+
+  let attempts = 0;
+  while (unassigned.size > 0 && attempts < active.length * 20) {
+    attempts++;
+    const freeIds = [...unassigned].filter(id => isFreeSim(tileMap.get(id), tileMap));
+    if (freeIds.length < 2) break;
+
+    const i = Math.floor(rng() * freeIds.length);
+    let j = Math.floor(rng() * (freeIds.length - 1));
+    if (j >= i) j++;
+
+    const idA = freeIds[i];
+    const idB = freeIds[j];
+    const pair = suitPool[suitIdx++];
+
+    // Find the actual tile objects and assign
+    const tA = state.tiles.find(t => t.id === idA);
+    const tB = state.tiles.find(t => t.id === idB);
+    tA.emoji = pair.emoji; tA.matchId = pair.matchId;
+    tB.emoji = pair.emoji; tB.matchId = pair.matchId;
+
+    tileMap.delete(idA);
+    tileMap.delete(idB);
+    unassigned.delete(idA);
+    unassigned.delete(idB);
+  }
+
+  // Fallback: assign any remaining unmatched tiles
+  const remaining = [...unassigned];
+  for (let k = 0; k < remaining.length; k += 2) {
+    const pair = suitPool[suitIdx++] || suitPool[0];
+    const tA = state.tiles.find(t => t.id === remaining[k]);
+    const tB = state.tiles.find(t => t.id === remaining[k + 1]);
+    if (tA) { tA.emoji = pair.emoji; tA.matchId = pair.matchId; }
+    if (tB) { tB.emoji = pair.emoji; tB.matchId = pair.matchId; }
   }
 
   state.selected = null;
