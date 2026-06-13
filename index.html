@@ -30,7 +30,7 @@
     background: var(--bg);
     color: var(--gold);
     font-family: 'Noto Serif SC', serif;
-    overflow: hidden;
+    overflow: auto;
     user-select: none;
   }
 
@@ -122,7 +122,12 @@
 
   #board {
     position: relative;
-    /* will be sized by JS */
+    overflow: visible;
+  }
+
+  #boardScaler {
+    transform-origin: top left;
+    overflow: visible;
   }
 
   /* === TILES === */
@@ -140,8 +145,6 @@
     box-shadow:
       2px 2px 0 var(--tile-shadow),
       3px 3px 6px rgba(0,0,0,0.4);
-    will-change: transform;
-    /* stacking context per layer handled by z-index */
   }
 
   .tile svg { display: block; pointer-events: none; }
@@ -310,38 +313,7 @@
     transform: translateX(-50%) translateY(0);
   }
 
-  /* === LAYOUT PICKER === */
-  .layout-bar {
-    display: flex;
-    gap: 6px;
-    padding: 6px 16px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    border-bottom: 1px solid rgba(201,168,76,0.1);
-  }
-  .layout-bar::-webkit-scrollbar { display: none; }
 
-  .layout-btn {
-    flex-shrink: 0;
-    background: rgba(201,168,76,0.08);
-    border: 1px solid rgba(201,168,76,0.2);
-    color: rgba(201,168,76,0.6);
-    font-family: inherit;
-    font-size: 11px;
-    padding: 5px 10px;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.15s;
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-  }
-  .layout-btn.active {
-    background: rgba(201,168,76,0.2);
-    border-color: var(--gold);
-    color: var(--gold);
-  }
-  .layout-btn:active { transform: scale(0.95); }
 </style>
 </head>
 <body>
@@ -349,13 +321,12 @@
   <header>
     <div class="logo">🀄 Mahjong</div>
     <div class="stats">
+      <div class="stat"><span class="stat-val" id="levelVal">1</span><span class="stat-lbl">Level</span></div>
       <div class="stat"><span class="stat-val" id="pairsLeft">0</span><span class="stat-lbl">Left</span></div>
       <div class="stat"><span class="stat-val" id="timerVal">0:00</span><span class="stat-lbl">Time</span></div>
       <div class="stat"><span class="stat-val" id="movesVal">0</span><span class="stat-lbl">Moves</span></div>
     </div>
   </header>
-
-  <div class="layout-bar" id="layoutBar"></div>
 
   <div class="progress-wrap">
     <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill" style="width:0%"></div></div>
@@ -366,31 +337,33 @@
     <button class="btn" id="btnUndo">↩ Undo</button>
     <button class="btn" id="btnHint">💡 Hint</button>
     <button class="btn" id="btnShuffle">🔀 Shuffle</button>
-    <button class="btn danger" id="btnNew">✦ New</button>
+    <button class="btn danger" id="btnNew">↺ Restart</button>
   </div>
 
-  <div class="best-wrap" id="bestWrap"></div>
-
   <div class="board-wrap">
-    <div id="board"></div>
+    <div id="boardScaler"><div id="board"></div></div>
   </div>
 </div>
 
 <div id="toast"></div>
 
-<div class="overlay" id="overlayWin">
-  <div class="overlay-icon">🏆</div>
-  <div class="overlay-title">Victory!</div>
-  <div class="overlay-sub">All tiles cleared. Excellent work!</div>
+<div class="overlay" id="overlayLevel">
+  <div class="overlay-icon">⭐</div>
+  <div class="ov-level" id="lvlCompleteTitle">Level 1 Complete!</div>
+  <div class="overlay-sub" id="lvlCompleteMsg">Keep going — the next level awaits.</div>
   <div class="overlay-stats">
-    <div class="ov-stat"><div class="ov-stat-val" id="winTime">-</div><div class="ov-stat-lbl">Time</div></div>
-    <div class="ov-stat"><div class="ov-stat-val" id="winMoves">-</div><div class="ov-stat-lbl">Moves</div></div>
-    <div class="ov-stat"><div class="ov-stat-val" id="winScore">-</div><div class="ov-stat-lbl">Score</div></div>
-    <div class="ov-stat"><div class="ov-stat-val" id="winBest">-</div><div class="ov-stat-lbl">Best</div></div>
+    <div class="ov-stat"><div class="ov-stat-val" id="lvlTime">-</div><div class="ov-stat-lbl">Time</div></div>
+    <div class="ov-stat"><div class="ov-stat-val" id="lvlMoves">-</div><div class="ov-stat-lbl">Moves</div></div>
+    <div class="ov-stat"><div class="ov-stat-val" id="lvlScore">-</div><div class="ov-stat-lbl">Score</div></div>
+    <div class="ov-stat"><div class="ov-stat-val" id="lvlTotal">-</div><div class="ov-stat-lbl">Total</div></div>
+  </div>
+  <div class="endless-progress">
+    <div class="ep-bar-bg"><div class="ep-bar-fill" id="lvlProgressFill" style="width:0%"></div></div>
+    <div class="ep-label" id="lvlProgressLabel"></div>
   </div>
   <div class="overlay-btns">
-    <button class="btn" id="btnWinNew">New Game</button>
-    <button class="btn" id="btnWinReplay">Replay</button>
+    <button class="btn" id="btnNextLevel">Next Level ➜</button>
+    <button class="btn danger" id="btnLvlQuit">Quit</button>
   </div>
 </div>
 
@@ -400,7 +373,7 @@
   <div class="overlay-sub">No more valid pairs available. Shuffle the board or start fresh.</div>
   <div class="overlay-btns">
     <button class="btn" id="btnStuckShuffle">🔀 Shuffle</button>
-    <button class="btn danger" id="btnStuckNew">New Game</button>
+    <button class="btn danger" id="btnStuckNew">↺ Restart</button>
   </div>
 </div>
 
@@ -437,288 +410,189 @@ const SUITS = [
 // Group by matchability: flowers match each other, seasons match each other, rest match by id
 // For simplicity we treat each id as its own match group (flowers/seasons get unique ids so they pair exactly)
 
+
 // ═══════════════════════════════════════════
-// LAYOUTS  (col, row, layer)
+// LEVEL LAYOUT BUILDER
+// Generates a layout with exactly `targetTiles`
+// tiles (even number). Style cycles per level.
 // ═══════════════════════════════════════════
-const LAYOUTS = {
-  turtle: {
-    name: '🐢 Turtle',
-    build() {
-      const pos = [];
-      // Layer 0: main 12×8 grid (exclude corners)
-      for (let r = 0; r < 8; r++)
-        for (let c = 0; c < 12; c++)
-          if (!((r === 0 || r === 7) && (c < 2 || c > 9)))
-            pos.push([c, r, 0]);
-      // Layer 1: 8×6
-      for (let r = 1; r < 7; r++)
-        for (let c = 2; c < 10; c++)
-          pos.push([c, r, 1]);
-      // Layer 2: 4×4
-      for (let r = 2; r < 6; r++)
-        for (let c = 4; c < 8; c++)
-          pos.push([c, r, 2]);
-      // Layer 3: 2×2
-      for (let r = 3; r < 5; r++)
-        for (let c = 5; c < 7; c++)
-          pos.push([c, r, 3]);
-      // Top
-      pos.push([5.5, 3.5, 4]);
-      // Left/right singles
-      pos.push([-1, 3.5, 0]);
-      pos.push([13, 3.5, 0]);
-      return pos;
+function buildLevelLayout(level, seed) {
+  const targetTiles = 50 + (level - 1) * 10;
+  const target = targetTiles % 2 === 0 ? targetTiles : targetTiles + 1;
+  const rng = seededRNG(seed + 99991);
+  const dedup = new Set();
+  const pos = [];
+  const add = (c, r, l) => {
+    const k = `${c},${r},${l}`;
+    if (!dedup.has(k)) { dedup.add(k); pos.push([c, r, l]); }
+  };
+
+  const style = (level - 1) % 8;
+
+  if (style === 0) {
+    // PYRAMID — layered rectangle shrinking inward
+    let remaining = target;
+    for (let l = 0; remaining > 0; l++) {
+      const w = Math.max(2, Math.round(Math.sqrt(remaining * 1.5)) - l);
+      const h = Math.max(2, Math.round(remaining / w));
+      for (let r = 0; r < h && remaining > 0; r++)
+        for (let c = 0; c < w && remaining > 0; c++) { add(c + l, r + l, l); remaining--; }
     }
-  },
-  pyramid: {
-    name: '⛩️ Gate',
-    build() {
-      const pos = [];
-      // rows 0-7, each row smaller
-      const rows = [12, 10, 8, 6, 4, 2, 1, 1];
-      const offsets = [0, 1, 2, 3, 4, 5, 5.5, 5.5];
-      rows.forEach((w, r) => {
-        for (let c = 0; c < w; c++)
-          pos.push([offsets[r] + c, r, r > 4 ? r - 4 : 0]);
-      });
-      return pos;
+  } else if (style === 1) {
+    // DIAMOND
+    const side = Math.ceil(Math.sqrt(target * 2));
+    const cx = side / 2, cy = side / 2;
+    let placed = 0;
+    for (let pass = 0; pass < 4 && placed < target; pass++) {
+      const rx = Math.max(1, cx - pass * 1.5);
+      const ry = Math.max(1, cy - pass * 1.2);
+      for (let r = 0; r <= side && placed < target; r++)
+        for (let c = 0; c <= side && placed < target; c++) {
+          const dx = Math.abs(c - cx) / rx, dy = Math.abs(r - cy) / ry;
+          if (dx + dy <= 1.05) { add(c, r, pass); placed++; }
+        }
     }
-  },
-  cross: {
-    name: '✚ Cross',
-    build() {
-      const pos = [];
-      // Horizontal bar
-      for (let c = 0; c < 14; c++) pos.push([c, 3, 0]), pos.push([c, 4, 0]);
-      // Vertical bar
-      for (let r = 0; r < 10; r++) pos.push([6, r, 0]), pos.push([7, r, 0]);
-      // Remove duplicates
-      const seen = new Set();
-      return pos.filter(([c, r, l]) => {
-        const k = `${c},${r},${l}`;
-        if (seen.has(k)) return false;
-        seen.add(k); return true;
-      });
+  } else if (style === 2) {
+    // CROSS
+    const arm = Math.ceil(target / 8);
+    const h = arm * 2, w = arm * 4;
+    const midR = Math.floor(h / 2), midC = Math.floor(w / 2);
+    for (let c = 0; c < w; c++) { add(c, midR, 0); add(c, midR + 1, 0); }
+    for (let r = 0; r < h; r++) { add(midC, r, 0); add(midC + 1, r, 0); }
+    for (let l = 1; pos.length < target + 20; l++) {
+      const s = Math.max(1, 4 - l);
+      for (let r = 0; r < s; r++) for (let c = 0; c < s; c++) add(midC - 1 + c, midR - 1 + r, l);
+      if (s <= 1) break;
     }
-  },
-  dragon: {
-    name: '🐉 Dragon',
-    build() {
-      const pos = [];
-      // Body
-      for (let c = 2; c < 12; c++) pos.push([c, 3, 0]), pos.push([c, 4, 0]);
-      // Head
-      for (let r = 1; r < 7; r++) pos.push([0, r, 0]), pos.push([1, r, 0]);
-      // Tail
-      pos.push([12, 2, 0]); pos.push([12, 5, 0]);
-      pos.push([13, 1, 0]); pos.push([13, 6, 0]);
-      // Spine (layer 1)
-      for (let c = 3; c < 11; c++) pos.push([c, 3.5, 1]);
-      // Eyes
-      pos.push([0.5, 2, 1]); pos.push([0.5, 5, 1]);
-      return pos;
+  } else if (style === 3) {
+    // CONCENTRIC RINGS
+    const rings = Math.ceil(target / 20);
+    const cx = rings * 2.5, cy = rings * 1.8;
+    for (let l = 0; l < rings && pos.length < target + 20; l++) {
+      const rx = Math.max(1, cx - l * 1.5), ry = Math.max(1, cy - l * 1.2);
+      for (let r = 0; r <= cy * 2; r++)
+        for (let c = 0; c <= cx * 2; c++) {
+          const dx = (c - cx) / rx, dy = (r - cy) / ry, d = dx*dx + dy*dy;
+          if (d <= 1.1 && (l === 0 || d >= 0.5)) add(c, r, l);
+        }
     }
-  },
-  fortress: {
-    name: '🏯 Fortress',
-    build() {
-      const pos = [];
-      const dedup = new Set();
-      const add = (c, r, l) => { const k=`${c},${r},${l}`; if(!dedup.has(k)){dedup.add(k);pos.push([c,r,l]);} };
-      // Outer walls — full perimeter 16×10
-      for (let c = 0; c < 16; c++) { add(c,0,0); add(c,9,0); }
-      for (let r = 0; r < 10; r++) { add(0,r,0); add(15,r,0); }
-      // Inner walls — 12×6 perimeter
-      for (let c = 2; c < 14; c++) { add(c,2,0); add(c,7,0); }
-      for (let r = 2; r < 8; r++) { add(2,r,0); add(13,r,0); }
-      // Fill interior 10×4
-      for (let r = 3; r < 7; r++) for (let c = 3; c < 13; c++) add(c,r,0);
-      // Layer 1: 8×3 interior
-      for (let r = 3; r < 7; r++) for (let c = 4; c < 12; c++) add(c,r,1);
-      // Layer 2: 6×2
-      for (let r = 4; r < 6; r++) for (let c = 5; c < 11; c++) add(c,r,2);
-      // Layer 3: 4×2
-      for (let r = 4; r < 6; r++) for (let c = 6; c < 10; c++) add(c,r,3);
-      // Layer 4: 2×2 keep
-      for (let r = 4; r < 6; r++) for (let c = 7; c < 9; c++) add(c,r,4);
-      // Corner towers (layer 1)
-      add(0,0,1); add(15,0,1); add(0,9,1); add(15,9,1);
-      return pos;
+  } else if (style === 4) {
+    // TURTLE shape
+    const scale = Math.ceil(target / 80);
+    const W = 6 * scale, H = 5 * scale;
+    for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) add(c, r, 0);
+    for (let r = 1; r < H-1; r++) for (let c = 1; c < W-1; c++) add(c, r, 1);
+    for (let r = 2; r < H-2; r++) for (let c = 2; c < W-2; c++) add(c, r, 2);
+    add(W/2, H/2, 3);
+    add(-1, Math.floor(H/2), 0); add(W, Math.floor(H/2), 0);
+  } else if (style === 5) {
+    // THREE PEAKS
+    const tilesPerPeak = Math.ceil(target / 3);
+    const peakH = Math.ceil(Math.sqrt(tilesPerPeak));
+    for (let p = 0; p < 3; p++) {
+      const ox = p * (peakH + 2);
+      for (let l = 0; l < peakH; l++) {
+        const w = Math.max(1, peakH - l);
+        for (let c = 0; c < w; c++) add(ox + l + c, peakH - l, l);
+        for (let c = 0; c < w; c++) add(ox + l + c, peakH - l + 1, l);
+      }
     }
-  },
-  empire: {
-    name: '🌏 Empire',
-    build() {
-      const pos = [];
-      const dedup = new Set();
-      const add = (c, r, l) => { const k=`${c},${r},${l}`; if(!dedup.has(k)){dedup.add(k);pos.push([c,r,l]);} };
-      // Base: full 18×10 grid
-      for (let r = 0; r < 10; r++) for (let c = 0; c < 18; c++) add(c,r,0);
-      // Layer 1: 14×8
-      for (let r = 1; r < 9; r++) for (let c = 2; c < 16; c++) add(c,r,1);
-      // Layer 2: 10×6
-      for (let r = 2; r < 8; r++) for (let c = 4; c < 14; c++) add(c,r,2);
-      // Layer 3: 6×4
-      for (let r = 3; r < 7; r++) for (let c = 6; c < 12; c++) add(c,r,3);
-      // Layer 4: 4×2
-      for (let r = 4; r < 6; r++) for (let c = 7; c < 11; c++) add(c,r,4);
-      // Layer 5: 2×2 peak
-      for (let r = 4; r < 6; r++) for (let c = 8; c < 10; c++) add(c,r,5);
-      return pos;
-    }
-  },
-  labyrinth: {
-    name: '🌀 Labyrinth',
-    build() {
-      const pos = [];
-      const dedup = new Set();
-      const add = (c, r, l) => { const k=`${c},${r},${l}`; if(!dedup.has(k)){dedup.add(k);pos.push([c,r,l]);} };
-      // Concentric rings on layer 0
-      // Ring 1: 20×12 perimeter
-      for (let c = 0; c < 20; c++) { add(c,0,0); add(c,11,0); }
-      for (let r = 1; r < 11; r++) { add(0,r,0); add(19,r,0); }
-      // Ring 2: 16×8 perimeter (offset 2)
-      for (let c = 2; c < 18; c++) { add(c,2,0); add(c,9,0); }
-      for (let r = 3; r < 9; r++) { add(2,r,0); add(17,r,0); }
-      // Ring 3: 12×4 perimeter (offset 4)
-      for (let c = 4; c < 16; c++) { add(c,4,0); add(c,7,0); }
-      for (let r = 5; r < 7; r++) { add(4,r,0); add(15,r,0); }
-      // Fill ring 3 interior
-      for (let r = 5; r < 7; r++) for (let c = 5; c < 15; c++) add(c,r,0);
-      // Corridors connecting rings (gaps intentional for gameplay)
-      for (let r = 1; r < 11; r++) { add(9,r,0); add(10,r,0); }
-      for (let c = 1; c < 19; c++) { add(c,5,0); add(c,6,0); }
-      // Layer 1: inner area
-      for (let r = 3; r < 9; r++) for (let c = 5; c < 15; c++) add(c,r,1);
-      // Layer 2: centre block
-      for (let r = 4; r < 8; r++) for (let c = 7; c < 13; c++) add(c,r,2);
-      // Layer 3: top
-      for (let r = 5; r < 7; r++) for (let c = 8; c < 12; c++) add(c,r,3);
-      return pos;
-    }
-  },
-  mountain: {
-    name: '🗻 Mountain',
-    build() {
-      const pos = [];
-      const dedup = new Set();
-      const add = (c, r, l) => { const k=`${c},${r},${l}`; if(!dedup.has(k)){dedup.add(k);pos.push([c,r,l]);} };
-      // Three peaks side by side, each a pyramid
-      const peaks = [0, 7, 14];
-      peaks.forEach(offset => {
-        // Base 6 wide
-        for (let c = 0; c < 6; c++) add(offset+c, 6, 0);
-        for (let c = 0; c < 6; c++) add(offset+c, 7, 0);
-        // Step up
-        for (let c = 1; c < 5; c++) add(offset+c, 4, 0);
-        for (let c = 1; c < 5; c++) add(offset+c, 5, 0);
-        for (let c = 1; c < 5; c++) add(offset+c, 4, 1);
-        for (let c = 1; c < 5; c++) add(offset+c, 5, 1);
-        // Mid
-        for (let c = 2; c < 4; c++) add(offset+c, 2, 0);
-        for (let c = 2; c < 4; c++) add(offset+c, 3, 0);
-        for (let c = 2; c < 4; c++) add(offset+c, 2, 1);
-        for (let c = 2; c < 4; c++) add(offset+c, 3, 1);
-        for (let c = 2; c < 4; c++) add(offset+c, 2, 2);
-        for (let c = 2; c < 4; c++) add(offset+c, 3, 2);
-        // Peak
-        add(offset+2.5, 1, 3);
-      });
-      // Valley floor connecting all three
-      for (let c = 0; c < 20; c++) { add(c, 8, 0); add(c, 9, 0); }
-      // Foothills layer 1
-      for (let c = 0; c < 20; c++) add(c, 8, 1);
-      return pos;
+  } else if (style === 6) {
+    // WIDE FLAT with stacked centre
+    const cols = Math.ceil(target / 4);
+    const rows = 4;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) add(c, r, 0);
+    const cw = Math.ceil(cols / 3), co = Math.floor(cols / 3);
+    for (let r = 1; r < rows - 1; r++) for (let c = 0; c < cw; c++) add(co + c, r, 1);
+    for (let r = 1; r < rows - 1; r++) for (let c = 0; c < Math.ceil(cw/2); c++) add(co + Math.floor(cw/4) + c, r, 2);
+  } else {
+    // SCATTERED CLUSTERS
+    const clusters = 3 + Math.floor(level / 4);
+    const tilesEach = Math.ceil(target / clusters) + 4;
+    for (let ci = 0; ci < clusters; ci++) {
+      const cx = Math.floor(rng() * 16) + 2;
+      const cy = Math.floor(rng() * 8) + 1;
+      const r2 = Math.ceil(Math.sqrt(tilesEach / Math.PI)) + 1;
+      for (let l = 0; l < 3; l++) {
+        const lr = Math.max(1, r2 - l);
+        for (let r = cy - lr; r <= cy + lr; r++)
+          for (let c = cx - lr; c <= cx + lr; c++)
+            if (Math.abs(c - cx) + Math.abs(r - cy) <= lr + 1) add(c, r, l);
+      }
     }
   }
-};
+
+  // Trim or pad to exact even target
+  while (pos.length > target) pos.pop();
+  if (pos.length % 2 !== 0) pos.pop();
+  return pos;
+}
 
 // ═══════════════════════════════════════════
 // GAME STATE
 // ═══════════════════════════════════════════
 let state = {
-  layoutKey: 'turtle',
-  tiles: [],        // { id, emoji, matchId, col, row, layer, removed, el }
+  level: 1,
+  tiles: [],
   selected: null,
   moves: 0,
   startTime: null,
   elapsed: 0,
   timerRunning: false,
-  undoStack: [],    // [{id1, id2}] for undo
+  undoStack: [],
   seed: 0,
   totalPairs: 0,
   removedPairs: 0,
+  totalScore: 0,
 };
 
 // ═══════════════════════════════════════════
 // PERSISTENCE
 // ═══════════════════════════════════════════
-const LS_STATE = 'mj_state_v2';
-const LS_BEST  = 'mj_best_v2';
+const LS_STATE = 'mj_state_v3';
+const LS_PROGRESS = 'mj_progress_v1';
 
 function saveState() {
   try {
-    const data = {
-      layoutKey: state.layoutKey,
-      tiles: state.tiles.map(t => ({
-        id: t.id, emoji: t.emoji, matchId: t.matchId,
-        col: t.col, row: t.row, layer: t.layer, removed: t.removed
-      })),
+    localStorage.setItem(LS_STATE, JSON.stringify({
+      level: state.level,
+      tiles: state.tiles.map(t => ({ id: t.id, emoji: t.emoji, matchId: t.matchId, col: t.col, row: t.row, layer: t.layer, removed: t.removed })),
       moves: state.moves,
       elapsed: state.elapsed + (state.timerRunning ? (Date.now() - state.startTime) : 0),
       seed: state.seed,
       totalPairs: state.totalPairs,
       removedPairs: state.removedPairs,
-    };
-    localStorage.setItem(LS_STATE, JSON.stringify(data));
+      totalScore: state.totalScore,
+    }));
   } catch(e) {}
 }
 
 function loadState() {
-  try {
-    const raw = localStorage.getItem(LS_STATE);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch(e) { return null; }
+  try { const r = localStorage.getItem(LS_STATE); return r ? JSON.parse(r) : null; }
+  catch(e) { return null; }
 }
 
-function clearSavedState() {
-  localStorage.removeItem(LS_STATE);
+function clearSavedState() { localStorage.removeItem(LS_STATE); }
+
+function getProgress() {
+  try { return JSON.parse(localStorage.getItem(LS_PROGRESS) || '{"bestLevel":1,"bestScore":0,"history":[]}'); }
+  catch(e) { return { bestLevel: 1, bestScore: 0, history: [] }; }
 }
 
-function getBest(layout) {
+function saveProgress(level, totalScore, levelScore) {
   try {
-    const b = JSON.parse(localStorage.getItem(LS_BEST) || '{}');
-    return b[layout] || null;
-  } catch(e) { return null; }
-}
-
-function saveBest(layout, score) {
-  try {
-    const b = JSON.parse(localStorage.getItem(LS_BEST) || '{}');
-    if (!b[layout] || score > b[layout]) b[layout] = score;
-    localStorage.setItem(LS_BEST, JSON.stringify(b));
+    const p = getProgress();
+    p.bestLevel = Math.max(p.bestLevel, level);
+    p.bestScore = Math.max(p.bestScore, totalScore);
+    p.history = (p.history || []);
+    p.history.push({ level, score: levelScore, date: Date.now() });
+    if (p.history.length > 200) p.history = p.history.slice(-200);
+    localStorage.setItem(LS_PROGRESS, JSON.stringify(p));
   } catch(e) {}
 }
 
-// ═══════════════════════════════════════════
-// LAYOUT BAR
-// ═══════════════════════════════════════════
-function buildLayoutBar() {
-  const bar = document.getElementById('layoutBar');
-  bar.innerHTML = '';
-  Object.entries(LAYOUTS).forEach(([key, layout]) => {
-    const b = document.createElement('button');
-    b.className = 'layout-btn' + (key === state.layoutKey ? ' active' : '');
-    b.textContent = layout.name;
-    b.addEventListener('click', () => {
-      if (key === state.layoutKey) return;
-      state.layoutKey = key;
-      clearSavedState();
-      newGame();
-    });
-    bar.appendChild(b);
-  });
+function updateLevelDisplay() {
+  document.getElementById('levelVal').textContent = state.level;
 }
 
 // ═══════════════════════════════════════════
@@ -975,27 +849,27 @@ function updateFreeState() {
 }
 
 function fitBoard(animate) {
-  const app   = document.getElementById('app');
-  const board = document.getElementById('board');
-  const wrap  = document.querySelector('.board-wrap');
+  const app         = document.getElementById('app');
+  const board       = document.getElementById('board');
+  const boardScaler = document.getElementById('boardScaler');
+  const wrap        = document.querySelector('.board-wrap');
 
-  // Reset board transform for clean measurement
-  app.style.transform   = 'none';
-  board.style.transform = 'none';
-  wrap.style.height     = '';
+  // Reset for clean measurement
+  app.style.transform          = 'none';
+  boardScaler.style.transform  = 'none';
+  wrap.style.height            = '';
 
   const appW   = app.offsetWidth;
-  const boardW = parseFloat(board.style.width) || board.offsetWidth;
+  const boardW = parseFloat(board.style.width)  || board.offsetWidth;
   const boardH = parseFloat(board.style.height) || board.offsetHeight;
 
-  // Scale board to fit within app content (minus 16px left + 16px right padding)
   const boardScale   = Math.min(1, (appW - 32) / boardW);
   const scaledBoardH = Math.ceil(boardH * boardScale);
 
-  board.style.transition      = 'none';
-  board.style.transform       = `scale(${boardScale})`;
-  board.style.transformOrigin = 'top left';
-  wrap.style.height           = (scaledBoardH + 32) + 'px';
+  boardScaler.style.transition      = 'none';
+  boardScaler.style.transform       = `scale(${boardScale})`;
+  boardScaler.style.transformOrigin = 'top left';
+  wrap.style.height                 = (scaledBoardH + 32) + 'px';
 }
 
 // ═══════════════════════════════════════════
@@ -1190,20 +1064,89 @@ function checkEnd() {
 }
 
 // ═══════════════════════════════════════════
-// WIN SCREEN
+// WIN / LEVEL COMPLETE
 // ═══════════════════════════════════════════
 function showWin() {
   clearSavedState();
-  const secs = Math.floor(state.elapsed / 1000);
+  const secs  = Math.floor(state.elapsed / 1000);
   const score = Math.max(0, 10000 - secs * 2 - state.moves * 5);
-  const best = getBest(state.layoutKey);
-  saveBest(state.layoutKey, score);
+  state.totalScore += score;
+  saveProgress(state.level, state.totalScore, score);
 
-  document.getElementById('winTime').textContent  = fmtTime(secs);
-  document.getElementById('winMoves').textContent = state.moves;
-  document.getElementById('winScore').textContent = score;
-  document.getElementById('winBest').textContent  = Math.max(score, best || 0);
-  document.getElementById('overlayWin').classList.add('show');
+  const p = getProgress();
+  document.getElementById('lvlCompleteTitle').textContent = `Level ${state.level} Complete!`;
+  document.getElementById('lvlCompleteMsg').textContent   =
+    state.level >= p.bestLevel ? '🏅 New best level!' : `Next: ${50 + state.level * 10} tiles`;
+  document.getElementById('lvlTime').textContent   = fmtTime(secs);
+  document.getElementById('lvlMoves').textContent  = state.moves;
+  document.getElementById('lvlScore').textContent  = score;
+  document.getElementById('lvlTotal').textContent  = state.totalScore;
+
+  const milestone = Math.ceil(state.level / 10) * 10;
+  const pct = ((state.level - (milestone - 10)) / 10 * 100).toFixed(0);
+  document.getElementById('lvlProgressFill').style.width  = pct + '%';
+  document.getElementById('lvlProgressLabel').textContent = `Level ${state.level} · Best ${p.bestLevel}`;
+
+  document.getElementById('overlayLevel').classList.add('show');
+}
+
+// ═══════════════════════════════════════════
+// START LEVEL
+// ═══════════════════════════════════════════
+function startLevel(level) {
+  stopTimer();
+  document.getElementById('overlayLevel').classList.remove('show');
+  document.getElementById('overlayStuck').classList.remove('show');
+
+  state.level = level;
+  state.seed  = Date.now();
+  const positions = buildLevelLayout(level, state.seed);
+  state.tiles = generateTiles(positions, state.seed);
+  state.selected     = null;
+  state.moves        = 0;
+  state.elapsed      = 0;
+  state.startTime    = null;
+  state.timerRunning = false;
+  state.undoStack    = [];
+  state.totalPairs   = state.tiles.length / 2;
+  state.removedPairs = 0;
+
+  renderBoard();
+  updateProgress();
+  updateHUD();
+  updateLevelDisplay();
+  document.getElementById('timerVal').textContent = '0:00';
+  clearSavedState();
+}
+
+// Restart from level 1 (keep running totalScore or reset)
+function restartGame() {
+  state.totalScore = 0;
+  startLevel(1);
+}
+
+// ═══════════════════════════════════════════
+// RESTORE SAVED
+// ═══════════════════════════════════════════
+function restoreGame(saved) {
+  state.level        = saved.level || 1;
+  state.moves        = saved.moves || 0;
+  state.elapsed      = saved.elapsed || 0;
+  state.seed         = saved.seed;
+  state.totalPairs   = saved.totalPairs;
+  state.removedPairs = saved.removedPairs;
+  state.totalScore   = saved.totalScore || 0;
+  state.selected     = null;
+  state.timerRunning = false;
+  state.startTime    = null;
+  state.undoStack    = [];
+  state.tiles = saved.tiles.map(t => ({ ...t, el: null }));
+
+  renderBoard();
+  updateProgress();
+  updateHUD();
+  updateLevelDisplay();
+  document.getElementById('timerVal').textContent = fmtTime(Math.floor(state.elapsed / 1000));
 }
 
 // ═══════════════════════════════════════════
@@ -1240,16 +1183,6 @@ function fmtTime(s) {
 // ═══════════════════════════════════════════
 // HUD & PROGRESS
 // ═══════════════════════════════════════════
-function updateHUD() {
-  const remaining = state.tiles.filter(t => !t.removed).length / 2;
-  document.getElementById('pairsLeft').textContent = remaining;
-  document.getElementById('movesVal').textContent  = state.moves;
-
-  const best = getBest(state.layoutKey);
-  const bw = document.getElementById('bestWrap');
-  bw.textContent = best ? `Best score: ${best}` : '';
-}
-
 function updateProgress() {
   const total = state.totalPairs;
   const done  = state.removedPairs;
@@ -1272,56 +1205,11 @@ function showToast(msg) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 1600);
 }
 
-// ═══════════════════════════════════════════
-// NEW GAME
-// ═══════════════════════════════════════════
-function newGame(seed) {
-  stopTimer();
-  document.getElementById('overlayWin').classList.remove('show');
-  document.getElementById('overlayStuck').classList.remove('show');
-
-  const positions = LAYOUTS[state.layoutKey].build();
-  state.seed = seed || Date.now();
-  state.tiles = generateTiles(positions, state.seed);
-  state.selected = null;
-  state.moves = 0;
-  state.elapsed = 0;
-  state.startTime = null;
-  state.timerRunning = false;
-  state.undoStack = [];
-  state.totalPairs = state.tiles.length / 2;
-  state.removedPairs = 0;
-
-  buildLayoutBar();
-  renderBoard();
-  updateProgress();
-  updateHUD();
-  document.getElementById('timerVal').textContent = '0:00';
-  clearSavedState();
-}
-
-// ═══════════════════════════════════════════
-// RESTORE SAVED
-// ═══════════════════════════════════════════
-function restoreGame(saved) {
-  state.layoutKey    = saved.layoutKey || 'turtle';
-  state.moves        = saved.moves || 0;
-  state.elapsed      = saved.elapsed || 0;
-  state.seed         = saved.seed;
-  state.totalPairs   = saved.totalPairs;
-  state.removedPairs = saved.removedPairs;
-  state.selected     = null;
-  state.timerRunning = false;
-  state.startTime    = null;
-  state.undoStack    = [];
-
-  state.tiles = saved.tiles.map(t => ({ ...t, el: null }));
-
-  buildLayoutBar();
-  renderBoard();
-  updateProgress();
-  updateHUD();
-  document.getElementById('timerVal').textContent = fmtTime(Math.floor(state.elapsed / 1000));
+function updateHUD() {
+  const remaining = state.tiles.filter(t => !t.removed).length / 2;
+  document.getElementById('pairsLeft').textContent = remaining;
+  document.getElementById('movesVal').textContent  = state.moves;
+  updateLevelDisplay();
 }
 
 // ═══════════════════════════════════════════
@@ -1333,23 +1221,23 @@ function init() {
     restoreGame(saved);
     showToast('Game restored ✦');
   } else {
-    newGame();
+    const p = getProgress();
+    state.totalScore = p.bestScore || 0;
+    startLevel(p.bestLevel || 1);
   }
 
-  document.getElementById('btnNew').addEventListener('click', newGame);
+  document.getElementById('btnNew').addEventListener('click', restartGame);
   document.getElementById('btnUndo').addEventListener('click', undo);
   document.getElementById('btnHint').addEventListener('click', hint);
   document.getElementById('btnShuffle').addEventListener('click', shuffleBoard);
-  document.getElementById('btnWinNew').addEventListener('click', newGame);
-  document.getElementById('btnWinReplay').addEventListener('click', () => newGame(state.seed));
+  document.getElementById('btnNextLevel').addEventListener('click', () => startLevel(state.level + 1));
+  document.getElementById('btnLvlQuit').addEventListener('click', restartGame);
   document.getElementById('btnStuckShuffle').addEventListener('click', () => {
     document.getElementById('overlayStuck').classList.remove('show');
     shuffleBoard();
-    if (!hasValidMoves()) showToast('Still no moves — shuffle again?');
   });
-  document.getElementById('btnStuckNew').addEventListener('click', newGame);
+  document.getElementById('btnStuckNew').addEventListener('click', restartGame);
 
-  // Pause timer on visibility change
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && state.timerRunning) {
       state.elapsed += Date.now() - state.startTime;
@@ -1358,7 +1246,6 @@ function init() {
       if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
       saveState();
     } else if (!document.hidden && state.moves > 0 && !state.timerRunning) {
-      // resume on return only if game was in progress
       startTimer();
     }
   });
