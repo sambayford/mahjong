@@ -430,7 +430,7 @@ function buildLevelLayout(level, seed) {
   const style = (level - 1) % 8;
 
   if (style === 0) {
-    // PYRAMID — layered rectangle shrinking inward
+    // PYRAMID — layered rectangle shrinking inward, always 3+ layers
     let remaining = target;
     for (let l = 0; remaining > 0; l++) {
       const w = Math.max(2, Math.round(Math.sqrt(remaining * 1.5)) - l);
@@ -439,7 +439,7 @@ function buildLevelLayout(level, seed) {
         for (let c = 0; c < w && remaining > 0; c++) { add(c + l, r + l, l); remaining--; }
     }
   } else if (style === 1) {
-    // DIAMOND
+    // DIAMOND — 4 concentric passes (each a layer)
     const side = Math.ceil(Math.sqrt(target * 2));
     const cx = side / 2, cy = side / 2;
     let placed = 0;
@@ -453,20 +453,24 @@ function buildLevelLayout(level, seed) {
         }
     }
   } else if (style === 2) {
-    // CROSS
-    const arm = Math.ceil(target / 8);
-    const h = arm * 2, w = arm * 4;
-    const midR = Math.floor(h / 2), midC = Math.floor(w / 2);
-    for (let c = 0; c < w; c++) { add(c, midR, 0); add(c, midR + 1, 0); }
-    for (let r = 0; r < h; r++) { add(midC, r, 0); add(midC + 1, r, 0); }
-    for (let l = 1; pos.length < target + 20; l++) {
-      const s = Math.max(1, 4 - l);
-      for (let r = 0; r < s; r++) for (let c = 0; c < s; c++) add(midC - 1 + c, midR - 1 + r, l);
-      if (s <= 1) break;
-    }
+    // FORTRESS — walled perimeter with filled interior and stacked centre
+    const side = Math.max(6, Math.ceil(Math.sqrt(target * 0.6)));
+    const sideH = Math.max(5, Math.ceil(side * 0.7));
+    // Outer wall
+    for (let c = 0; c < side; c++) { add(c, 0, 0); add(c, sideH - 1, 0); }
+    for (let r = 1; r < sideH - 1; r++) { add(0, r, 0); add(side - 1, r, 0); }
+    // Fill interior layer 0
+    for (let r = 1; r < sideH - 1; r++) for (let c = 1; c < side - 1; c++) add(c, r, 0);
+    // Layer 1: inner rectangle
+    for (let r = 1; r < sideH - 1; r++) for (let c = 1; c < side - 1; c++) add(c, r, 1);
+    // Layer 2: centre block
+    for (let r = 2; r < sideH - 2; r++) for (let c = 2; c < side - 2; c++) add(c, r, 2);
+    // Layer 3: core
+    for (let r = 3; r < sideH - 3; r++) for (let c = 3; c < side - 3; c++) add(c, r, 3);
   } else if (style === 3) {
-    // CONCENTRIC RINGS
-    const rings = Math.ceil(target / 20);
+    // CONCENTRIC RINGS — minimum 3 layers
+    const minRings = 3;
+    const rings = Math.max(minRings, Math.ceil(target / 20));
     const cx = rings * 2.5, cy = rings * 1.8;
     for (let l = 0; l < rings && pos.length < target + 20; l++) {
       const rx = Math.max(1, cx - l * 1.5), ry = Math.max(1, cy - l * 1.2);
@@ -477,18 +481,18 @@ function buildLevelLayout(level, seed) {
         }
     }
   } else if (style === 4) {
-    // TURTLE shape
-    const scale = Math.ceil(target / 80);
+    // TURTLE — always 4 layers
+    const scale = Math.max(1, Math.ceil(target / 80));
     const W = 6 * scale, H = 5 * scale;
     for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) add(c, r, 0);
     for (let r = 1; r < H-1; r++) for (let c = 1; c < W-1; c++) add(c, r, 1);
     for (let r = 2; r < H-2; r++) for (let c = 2; c < W-2; c++) add(c, r, 2);
-    add(W/2, H/2, 3);
+    for (let r = 3; r < H-3; r++) for (let c = 3; c < W-3; c++) add(c, r, 3);
     add(-1, Math.floor(H/2), 0); add(W, Math.floor(H/2), 0);
   } else if (style === 5) {
-    // THREE PEAKS
+    // THREE PEAKS — each peak always 3+ layers
     const tilesPerPeak = Math.ceil(target / 3);
-    const peakH = Math.ceil(Math.sqrt(tilesPerPeak));
+    const peakH = Math.max(3, Math.ceil(Math.sqrt(tilesPerPeak)));
     for (let p = 0; p < 3; p++) {
       const ox = p * (peakH + 2);
       for (let l = 0; l < peakH; l++) {
@@ -498,27 +502,42 @@ function buildLevelLayout(level, seed) {
       }
     }
   } else if (style === 6) {
-    // WIDE FLAT with stacked centre
-    const cols = Math.ceil(target / 4);
-    const rows = 4;
-    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) add(c, r, 0);
-    const cw = Math.ceil(cols / 3), co = Math.floor(cols / 3);
-    for (let r = 1; r < rows - 1; r++) for (let c = 0; c < cw; c++) add(co + c, r, 1);
-    for (let r = 1; r < rows - 1; r++) for (let c = 0; c < Math.ceil(cw/2); c++) add(co + Math.floor(cw/4) + c, r, 2);
-  } else {
-    // SCATTERED CLUSTERS
-    const clusters = 3 + Math.floor(level / 4);
-    const tilesEach = Math.ceil(target / clusters) + 4;
-    for (let ci = 0; ci < clusters; ci++) {
-      const cx = Math.floor(rng() * 16) + 2;
-      const cy = Math.floor(rng() * 8) + 1;
-      const r2 = Math.ceil(Math.sqrt(tilesEach / Math.PI)) + 1;
-      for (let l = 0; l < 3; l++) {
-        const lr = Math.max(1, r2 - l);
-        for (let r = cy - lr; r <= cy + lr; r++)
-          for (let c = cx - lr; c <= cx + lr; c++)
-            if (Math.abs(c - cx) + Math.abs(r - cy) <= lr + 1) add(c, r, l);
+    // STAIRCASE — ascending steps, each step a layer higher
+    const steps = Math.max(3, Math.ceil(Math.sqrt(target / 2)));
+    const tilesPerStep = Math.ceil(target / steps);
+    for (let s = 0; s < steps; s++) {
+      const w = Math.max(2, tilesPerStep - s);
+      for (let r = 0; r < 2; r++)
+        for (let c = 0; c < w; c++) add(s * 2 + c, s * 2 + r, s);
+      // Stack additional layers on earlier (lower) steps
+      if (s > 0) {
+        for (let l = 1; l <= s && l <= 3; l++) {
+          const sw = Math.max(2, w - l * 2);
+          for (let r = 0; r < 2; r++)
+            for (let c = 0; c < sw; c++) add(s * 2 + l + c, s * 2 + r, l);
+        }
       }
+    }
+  } else {
+    // SPIRAL — tiles wind inward from the outside, stacking as they go
+    const w = Math.max(8, Math.ceil(Math.sqrt(target * 1.6)));
+    const h = Math.max(6, Math.ceil(w * 0.7));
+    let top = 0, bottom = h - 1, left = 0, right = w - 1, l = 0;
+    let placed = 0;
+    while (top <= bottom && left <= right && placed < target + 20) {
+      for (let c = left; c <= right; c++) { add(c, top, l); placed++; }
+      top++;
+      for (let r = top; r <= bottom; r++) { add(right, r, l); placed++; }
+      right--;
+      if (top <= bottom) {
+        for (let c = right; c >= left; c--) { add(c, bottom, l); placed++; }
+        bottom--;
+      }
+      if (left <= right) {
+        for (let r = bottom; r >= top; r--) { add(left, r, l); placed++; }
+        left++;
+      }
+      l++; // each loop of the spiral is a higher layer
     }
   }
 
